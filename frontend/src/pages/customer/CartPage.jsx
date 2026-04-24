@@ -1,0 +1,93 @@
+import { Link, useNavigate } from 'react-router-dom';
+import { useCart } from '../../context/CartContext';
+import { formatCurrency } from '../../utils/helpers';
+
+export default function CartPage() {
+  const { cart, updateQuantity, removeFromCart, loadingCart } = useCart();
+  const navigate = useNavigate();
+
+  if (loadingCart) {
+    return <div className="flex justify-center py-16"><div className="spinner" /></div>;
+  }
+
+  if (!cart.items.length) {
+    return (
+      <div className="text-center py-24">
+        <div className="text-8xl mb-4">🛒</div>
+        <h2 className="font-display text-2xl font-bold text-gray-900 dark:text-white mb-2">Your cart is empty</h2>
+        <p className="text-gray-500 mb-6">Looks like you haven't added anything yet!</p>
+        <Link to="/products" className="btn-primary inline-flex">Browse Menu 🍿</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white mb-6">🛒 Your Cart</h1>
+
+      <div className="space-y-3 mb-6">
+        {cart.items.map((item) => (
+          <div key={item.product?._id || item._id} className="card p-4 flex items-center gap-4">
+            <img
+              src={item.product?.image || `https://via.placeholder.com/80x80?text=${encodeURIComponent(item.product?.name || '')}`}
+              alt={item.product?.name}
+              className="w-16 h-16 object-cover rounded-xl bg-gray-100 flex-shrink-0"
+              onError={(e) => { e.target.src = `https://via.placeholder.com/80x80?text=🍟`; }}
+            />
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">{item.product?.name}</h3>
+              <p className="text-orange-500 font-bold text-sm">{formatCurrency(item.price)}</p>
+            </div>
+            {/* Quantity controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => item.quantity > 1 ? updateQuantity(item.product._id, item.quantity - 1) : removeFromCart(item.product._id)}
+                className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-orange-100 text-gray-700 dark:text-gray-300 font-bold flex items-center justify-center transition-all"
+              >−</button>
+              <span className="w-6 text-center font-bold text-sm text-gray-900 dark:text-white">{item.quantity}</span>
+              <button
+                onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
+                disabled={item.quantity >= (item.product?.stock || 99)}
+                className="w-8 h-8 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-600 font-bold flex items-center justify-center transition-all disabled:opacity-40"
+              >+</button>
+            </div>
+            {/* Subtotal */}
+            <div className="text-right w-16">
+              <p className="font-bold text-sm text-gray-900 dark:text-white">{formatCurrency(item.price * item.quantity)}</p>
+            </div>
+            {/* Remove */}
+            <button onClick={() => removeFromCart(item.product._id)}
+              className="text-red-400 hover:text-red-600 p-1 rounded transition-all flex-shrink-0">✕</button>
+          </div>
+        ))}
+      </div>
+
+      {/* Summary */}
+      <div className="card p-5 mb-4">
+        <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Order Summary</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between text-gray-600 dark:text-gray-400">
+            <span>Subtotal ({cart.items.length} items)</span>
+            <span>{formatCurrency(cart.totalAmount)}</span>
+          </div>
+          <div className="flex justify-between text-gray-600 dark:text-gray-400">
+            <span>Delivery</span>
+            <span className="text-green-500 font-medium">FREE</span>
+          </div>
+          <hr className="border-gray-100 dark:border-gray-800 my-2" />
+          <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white">
+            <span>Total</span>
+            <span className="text-orange-500">{formatCurrency(cart.totalAmount)}</span>
+          </div>
+        </div>
+      </div>
+
+      <button onClick={() => navigate('/checkout')} className="btn-primary w-full text-base py-3">
+        Proceed to Checkout →
+      </button>
+      <Link to="/products" className="block text-center mt-3 text-sm text-gray-500 hover:text-orange-500 transition-all">
+        ← Continue Shopping
+      </Link>
+    </div>
+  );
+}

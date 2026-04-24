@@ -1,0 +1,15 @@
+{
+  "name": "hostel-snacks",
+  "version": "1.0.0",
+  "description": "HostelBite — Full-stack hostel snack delivery system",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "seed": "cd backend && node scripts/seed.js",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
