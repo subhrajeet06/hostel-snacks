@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (data) => {
     setLoading(true);
     try {
-      const res = await api.post('/auth/register', data);
+      const res = await api.post('/users/register', data);
       saveSession(res.data.token, res.data.user);
       toast.success('Welcome to HostelBite! 🎉');
       return { success: true };
@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setLoading(true);
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/users/login', { email, password });
       saveSession(res.data.token, res.data.user);
       toast.success(`Welcome back, ${res.data.user.name}! 👋`);
       return { success: true, role: res.data.user.role };
