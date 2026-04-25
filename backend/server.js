@@ -12,22 +12,7 @@ const server = http.createServer(app);
 
 
 
-app.get("/seed", async (req, res) => {
-  const User = require("./models/User");
-  const Product = require("./models/Product");
 
-  await User.deleteMany();
-  await Product.deleteMany();
-
-  const admin = await User.create({
-    name: "Admin",
-    email: "admin@hostel.com",
-    password: "Admin@123",
-    role: "admin",
-  });
-
-  res.send("Seeded successfully");
-});
 
 
 
