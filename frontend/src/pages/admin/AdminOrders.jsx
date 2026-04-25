@@ -7,6 +7,7 @@ const STATUSES = ['all','pending','accepted','preparing','out_for_delivery','del
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [expanded, setExpanded] = useState(null);
@@ -15,9 +16,11 @@ export default function AdminOrders() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const q = filter !== 'all' ? `?status=${filter}` : '';
-      const res = await api.get(`/admin/orders${q}&limit=50`);
+      const params = new URLSearchParams({ limit: '100' });
+      if (filter !== 'all') params.set('status', filter);
+      const res = await api.get(`/admin/orders?${params.toString()}`);
       setOrders(res.data.orders);
+      if (res.data.stats) setStats(res.data.stats);
     } catch {}
     setLoading(false);
   };
@@ -30,11 +33,11 @@ export default function AdminOrders() {
       const res = await api.put(`/orders/${orderId}/status`, { status });
       setOrders((prev) => prev.map((o) => o._id === orderId ? res.data.order : o));
       toast.success(`Marked as ${statusLabel[status]}`);
+      // Re-fetch to update stats
+      fetchOrders();
     } catch { toast.error('Update failed'); }
     setUpdating(null);
   };
-
-  const totalRevenue = orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.totalAmount, 0);
 
   return (
     <div>
@@ -43,24 +46,60 @@ export default function AdminOrders() {
         <button onClick={fetchOrders} className="btn-secondary text-sm py-2">↻ Refresh</button>
       </div>
 
-      {/* Summary strip */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      {/* Summary stats from backend */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <div className="stat-card">
           <span className="text-xl">📦</span>
-          <p className="text-xl font-display font-bold text-gray-900 dark:text-white">{orders.length}</p>
-          <p className="text-xs text-gray-500">Shown Orders</p>
-        </div>
-        <div className="stat-card">
-          <span className="text-xl">⏳</span>
-          <p className="text-xl font-display font-bold text-yellow-500">{orders.filter((o) => o.status === 'pending').length}</p>
-          <p className="text-xs text-gray-500">Pending</p>
+          <p className="text-xl font-display font-bold text-gray-900 dark:text-white">{stats?.totalOrders ?? 0}</p>
+          <p className="text-xs text-gray-500">Total Orders</p>
         </div>
         <div className="stat-card">
           <span className="text-xl">💰</span>
-          <p className="text-xl font-display font-bold text-green-500">{formatCurrency(totalRevenue)}</p>
-          <p className="text-xs text-gray-500">Delivered Revenue</p>
+          <p className="text-xl font-display font-bold text-green-500">{formatCurrency(stats?.totalRevenue ?? 0)}</p>
+          <p className="text-xs text-gray-500">Total Revenue</p>
+        </div>
+        <div className="stat-card">
+          <span className="text-xl">⏳</span>
+          <p className="text-xl font-display font-bold text-yellow-500">{stats?.pendingOrders ?? 0}</p>
+          <p className="text-xs text-gray-500">Pending Orders</p>
+        </div>
+        <div className="stat-card">
+          <span className="text-xl">❌</span>
+          <p className="text-xl font-display font-bold text-red-500">{stats?.cancelledOrders ?? 0}</p>
+          <p className="text-xs text-gray-500">Cancelled Orders</p>
         </div>
       </div>
+
+      {/* Per-seller revenue breakdown */}
+      {stats?.sellerRevenue?.length > 0 && (
+        <div className="card p-5 mb-5">
+          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">👨‍🍳 Revenue by Seller</h2>
+          <div className="space-y-3">
+            {stats.sellerRevenue.map((seller) => {
+              const maxRev = Math.max(...stats.sellerRevenue.map((s) => s.revenue));
+              const pct = maxRev > 0 ? (seller.revenue / maxRev) * 100 : 0;
+              return (
+                <div key={seller.sellerId} className="flex items-center gap-3">
+                  <div className="w-32 min-w-0 flex-shrink-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{seller.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{seller.email}</p>
+                  </div>
+                  <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-full h-3">
+                    <div
+                      className="bg-gradient-to-r from-orange-400 to-orange-600 h-3 rounded-full transition-all"
+                      style={{ width: `${Math.max(pct, 4)}%` }}
+                    />
+                  </div>
+                  <div className="text-right flex-shrink-0 w-28">
+                    <p className="text-sm font-bold text-orange-500">{formatCurrency(seller.revenue)}</p>
+                    <p className="text-xs text-gray-400">{seller.itemsSold} items sold</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Status filter */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-5">

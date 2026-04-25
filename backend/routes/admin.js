@@ -116,10 +116,10 @@ router.post('/sellers', async (req, res) => {
 });
 
 // @route   GET /api/admin/orders
-// @desc    Get all orders
+// @desc    Get all orders with aggregated stats
 // @access  Admin
 router.get('/orders', async (req, res) => {
-  const { status, page = 1, limit = 20 } = req.query;
+  const { status, page = 1, limit = 50 } = req.query;
   const query = {};
   if (status) query.status = status;
 
@@ -131,7 +131,58 @@ router.get('/orders', async (req, res) => {
     .skip(skip)
     .limit(Number(limit));
 
-  res.json({ success: true, total, orders });
+  // Aggregated stats from ALL orders (ignoring pagination/filter)
+  const totalOrders = await Order.countDocuments();
+  const cancelledOrders = await Order.countDocuments({ status: 'cancelled' });
+  const pendingOrders = await Order.countDocuments({ status: { $nin: ['delivered', 'cancelled'] } });
+
+  const revenueAgg = await Order.aggregate([
+    { $match: { status: 'delivered' } },
+    { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+  ]);
+  const totalRevenue = revenueAgg[0]?.total || 0;
+
+  // Per-seller revenue breakdown (from delivered order items)
+  const sellerRevenueAgg = await Order.aggregate([
+    { $match: { status: 'delivered' } },
+    { $unwind: '$items' },
+    { $match: { 'items.seller': { $exists: true, $ne: null } } },
+    {
+      $group: {
+        _id: '$items.seller',
+        revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+        itemsSold: { $sum: '$items.quantity' },
+      },
+    },
+    { $sort: { revenue: -1 } },
+  ]);
+
+  // Populate seller names
+  const sellerIds = sellerRevenueAgg.map((s) => s._id);
+  const sellers = await User.find({ _id: { $in: sellerIds } }).select('name email');
+  const sellerMap = {};
+  sellers.forEach((s) => { sellerMap[s._id.toString()] = { name: s.name, email: s.email }; });
+
+  const sellerRevenue = sellerRevenueAgg.map((s) => ({
+    sellerId: s._id,
+    name: sellerMap[s._id.toString()]?.name || 'Unknown',
+    email: sellerMap[s._id.toString()]?.email || '',
+    revenue: s.revenue,
+    itemsSold: s.itemsSold,
+  }));
+
+  res.json({
+    success: true,
+    total,
+    orders,
+    stats: {
+      totalOrders,
+      totalRevenue,
+      cancelledOrders,
+      pendingOrders,
+      sellerRevenue,
+    },
+  });
 });
 
 // @route   GET /api/admin/products
