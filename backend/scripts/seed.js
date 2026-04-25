@@ -66,7 +66,7 @@ const seed = async () => {
 
   console.log('\n🎉 Database seeded successfully!\n');
   console.log('Login credentials:');
-  console.log('  Admin:    admin@hostel.com   / Admin@123');
+  console.log(`  Admin:    ${process.env.ADMIN_EMAIL || 'admin@hostel.com'}   / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
   console.log('  Seller:   seller@hostel.com  / Seller@123');
   console.log('  Customer: student@hostel.com / Student@123');
 
