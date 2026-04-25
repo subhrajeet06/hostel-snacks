@@ -99,7 +99,7 @@ export default function SellerOrders() {
                   <p className="text-xs text-gray-500 mt-0.5">{formatDate(order.createdAt)} · {order.items.length} item(s)</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="font-bold text-orange-500">{formatCurrency(order.totalAmount)}</p>
+                  <p className="font-bold text-orange-500">{formatCurrency(order.sellerAmount ?? order.totalAmount)}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{order.user?.name || 'Customer'}</p>
                 </div>
               </div>

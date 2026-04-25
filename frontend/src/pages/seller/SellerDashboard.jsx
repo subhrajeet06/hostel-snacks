@@ -37,7 +37,7 @@ export default function SellerDashboard() {
   const stats = {
     total: orders.length,
     pending: orders.filter((o) => o.status === 'pending').length,
-    revenue: orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + o.totalAmount, 0),
+    revenue: orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + (o.sellerAmount ?? o.totalAmount), 0),
     lowStock: products.filter((p) => p.stock < 5).length,
   };
 
@@ -86,7 +86,7 @@ export default function SellerDashboard() {
                   </div>
                   <div className="text-right">
                     <span className={`badge ${statusColor[o.status]} text-xs`}>{statusLabel[o.status]}</span>
-                    <p className="text-sm font-bold text-orange-500 mt-1">{formatCurrency(o.totalAmount)}</p>
+                    <p className="text-sm font-bold text-orange-500 mt-1">{formatCurrency(o.sellerAmount ?? o.totalAmount)}</p>
                   </div>
                 </div>
               ))}

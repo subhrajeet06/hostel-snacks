@@ -30,7 +30,7 @@ router.post('/', protect, authorize('customer'), async (req, res) => {
     }
 
     const price = product.price - (product.price * product.discount) / 100;
-    orderItems.push({ product: product._id, name: product.name, image: product.image, price, quantity: item.quantity });
+    orderItems.push({ product: product._id, seller: product.seller, name: product.name, image: product.image, price, quantity: item.quantity });
     totalAmount += price * item.quantity;
 
     // Deduct stock
@@ -94,20 +94,39 @@ router.get('/:id', protect, async (req, res) => {
 });
 
 // @route   GET /api/orders/seller/all
-// @desc    Get all orders (for seller)
+// @desc    Get orders for seller (only their items) or all orders for admin
 // @access  Seller / Admin
 router.get('/seller/all', protect, authorize('seller', 'admin'), async (req, res) => {
   const { status, page = 1, limit = 20 } = req.query;
+  const isAdmin = req.user.role === 'admin';
+
+  // Build query — sellers only see orders containing their items
   const query = {};
   if (status) query.status = status;
+  if (!isAdmin) {
+    query['items.seller'] = req.user.id;
+  }
 
   const skip = (page - 1) * limit;
   const total = await Order.countDocuments(query);
-  const orders = await Order.find(query)
+  const rawOrders = await Order.find(query)
     .populate('user', 'name email phone')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(Number(limit));
+
+  // For sellers, filter items to only their own and recalculate the seller-specific amount
+  let orders;
+  if (!isAdmin) {
+    orders = rawOrders.map((order) => {
+      const o = order.toObject();
+      o.items = o.items.filter((item) => item.seller && item.seller.toString() === req.user.id);
+      o.sellerAmount = o.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      return o;
+    });
+  } else {
+    orders = rawOrders;
+  }
 
   res.json({ success: true, total, orders });
 });
