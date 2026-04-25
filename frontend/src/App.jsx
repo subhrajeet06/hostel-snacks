@@ -31,20 +31,37 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
 
+// Helper: redirect to the correct dashboard based on role
+const getDashboardPath = (role) => {
+  if (role === 'admin') return '/admin';
+  if (role === 'seller') return '/seller';
+  return '/';
+};
+
 // Route Guards
 const PrivateRoute = ({ children, roles }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
+  if (roles && !roles.includes(user.role)) {
+    // Redirect to the user's own dashboard instead of '/' to avoid loops
+    return <Navigate to={getDashboardPath(user.role)} replace />;
+  }
   return children;
 };
 
 const GuestRoute = ({ children }) => {
   const { user } = useAuth();
   if (user) {
-    if (user.role === 'admin')  return <Navigate to="/admin"  replace />;
-    if (user.role === 'seller') return <Navigate to="/seller" replace />;
-    return <Navigate to="/" replace />;
+    return <Navigate to={getDashboardPath(user.role)} replace />;
+  }
+  return children;
+};
+
+// Redirects non-customer users away from customer routes to their dashboard
+const CustomerRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (user && user.role !== 'customer') {
+    return <Navigate to={getDashboardPath(user.role)} replace />;
   }
   return children;
 };
@@ -58,8 +75,8 @@ export default function App() {
       <Route path="/login"    element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
 
-      {/* Customer */}
-      <Route path="/" element={<CustomerLayout />}>
+      {/* Customer — redirect sellers/admins to their dashboard */}
+      <Route path="/" element={<CustomerRoute><CustomerLayout /></CustomerRoute>}>
         <Route index element={<HomePage />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="cart"     element={<PrivateRoute roles={['customer']}><CartPage /></PrivateRoute>} />
@@ -92,3 +109,4 @@ export default function App() {
     </Routes>
   );
 }
+

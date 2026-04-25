@@ -8,6 +8,34 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser]       = useState(() => JSON.parse(localStorage.getItem('user')) || null);
   const [loading, setLoading] = useState(false);
 
+  // Validate token on app load — if expired/invalid, clear stale session
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !user) return;
+
+    api.get('/auth/me')
+      .then((res) => {
+        // Update user data with fresh info from server
+        const freshUser = res.data.user;
+        const userData = {
+          id: freshUser._id,
+          name: freshUser.name,
+          email: freshUser.email,
+          role: freshUser.role,
+          phone: freshUser.phone,
+          roomNumber: freshUser.roomNumber,
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+      })
+      .catch(() => {
+        // Token is invalid or expired — clear session
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const saveSession = (token, userData) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
