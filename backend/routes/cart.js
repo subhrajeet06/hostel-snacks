@@ -10,6 +10,17 @@ const { protect, authorize } = require('../middleware/auth');
 router.get('/', protect, authorize('customer'), async (req, res) => {
   const cart = await Cart.findOne({ user: req.user.id }).populate('items.product', 'name price image isAvailable stock discount');
   if (!cart) return res.json({ success: true, cart: { items: [], totalAmount: 0, totalItems: 0 } });
+
+  // Auto-remove items whose product was deleted or is no longer available
+  const originalLength = cart.items.length;
+  cart.items = cart.items.filter(
+    (item) => item.product && item.product.isAvailable && item.product.stock > 0
+  );
+  if (cart.items.length !== originalLength) {
+    await cart.save();
+    await cart.populate('items.product', 'name price image isAvailable stock discount');
+  }
+
   res.json({ success: true, cart });
 });
 
@@ -59,6 +70,8 @@ router.put('/update', protect, authorize('customer'), async (req, res) => {
   if (quantity < 1) return res.status(400).json({ success: false, message: 'Quantity must be at least 1' });
 
   const product = await Product.findById(productId);
+  if (!product) return res.status(404).json({ success: false, message: 'Product no longer exists' });
+  if (!product.isAvailable || product.stock < 1) return res.status(400).json({ success: false, message: 'Product is no longer available' });
   if (product.stock < quantity) return res.status(400).json({ success: false, message: 'Insufficient stock' });
 
   const cart = await Cart.findOne({ user: req.user.id });

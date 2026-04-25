@@ -1,10 +1,14 @@
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency } from '../../utils/helpers';
 
 export default function CartPage() {
-  const { cart, updateQuantity, removeFromCart, loadingCart } = useCart();
+  const { cart, updateQuantity, removeFromCart, loadingCart, fetchCart } = useCart();
   const navigate = useNavigate();
+
+  // Re-fetch cart on mount to auto-clean unavailable items (backend handles cleanup)
+  useEffect(() => { fetchCart(); }, [fetchCart]);
 
   if (loadingCart) {
     return <div className="flex justify-center py-16"><div className="spinner" /></div>;
@@ -26,40 +30,54 @@ export default function CartPage() {
       <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white mb-6">🛒 Your Cart</h1>
 
       <div className="space-y-3 mb-6">
-        {cart.items.map((item) => (
-          <div key={item.product?._id || item._id} className="card p-4 flex items-center gap-4">
-            <img
-              src={item.product?.image || `https://via.placeholder.com/80x80?text=${encodeURIComponent(item.product?.name || '')}`}
-              alt={item.product?.name}
-              className="w-16 h-16 object-cover rounded-xl bg-gray-100 flex-shrink-0"
-              onError={(e) => { e.target.src = `https://via.placeholder.com/80x80?text=🍟`; }}
-            />
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">{item.product?.name}</h3>
-              <p className="text-orange-500 font-bold text-sm">{formatCurrency(item.price)}</p>
+        {cart.items.map((item) => {
+          const product = item.product;
+          const productId = product?._id || item.product;
+          const isUnavailable = !product || !product.isAvailable || product.stock < 1;
+
+          return (
+            <div key={productId} className={`card p-4 flex items-center gap-4 ${isUnavailable ? 'opacity-60 border-red-200 dark:border-red-800' : ''}`}>
+              <img
+                src={product?.image || `https://via.placeholder.com/80x80?text=🍟`}
+                alt={product?.name || 'Unavailable'}
+                className="w-16 h-16 object-cover rounded-xl bg-gray-100 flex-shrink-0"
+                onError={(e) => { e.target.src = `https://via.placeholder.com/80x80?text=🍟`; }}
+              />
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">{product?.name || 'Product Unavailable'}</h3>
+                {isUnavailable ? (
+                  <p className="text-red-500 font-bold text-xs">❌ No longer available</p>
+                ) : (
+                  <p className="text-orange-500 font-bold text-sm">{formatCurrency(item.price)}</p>
+                )}
+              </div>
+              {/* Quantity controls — only show for available products */}
+              {!isUnavailable && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => item.quantity > 1 ? updateQuantity(productId, item.quantity - 1) : removeFromCart(productId)}
+                    className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-orange-100 text-gray-700 dark:text-gray-300 font-bold flex items-center justify-center transition-all"
+                  >−</button>
+                  <span className="w-6 text-center font-bold text-sm text-gray-900 dark:text-white">{item.quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(productId, item.quantity + 1)}
+                    disabled={item.quantity >= (product?.stock || 99)}
+                    className="w-8 h-8 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-600 font-bold flex items-center justify-center transition-all disabled:opacity-40"
+                  >+</button>
+                </div>
+              )}
+              {/* Subtotal */}
+              <div className="text-right w-16">
+                {!isUnavailable && (
+                  <p className="font-bold text-sm text-gray-900 dark:text-white">{formatCurrency(item.price * item.quantity)}</p>
+                )}
+              </div>
+              {/* Remove */}
+              <button onClick={() => removeFromCart(productId)}
+                className="text-red-400 hover:text-red-600 p-1 rounded transition-all flex-shrink-0">✕</button>
             </div>
-            {/* Quantity controls */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => item.quantity > 1 ? updateQuantity(item.product._id, item.quantity - 1) : removeFromCart(item.product._id)}
-                className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-orange-100 text-gray-700 dark:text-gray-300 font-bold flex items-center justify-center transition-all"
-              >−</button>
-              <span className="w-6 text-center font-bold text-sm text-gray-900 dark:text-white">{item.quantity}</span>
-              <button
-                onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
-                disabled={item.quantity >= (item.product?.stock || 99)}
-                className="w-8 h-8 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-600 font-bold flex items-center justify-center transition-all disabled:opacity-40"
-              >+</button>
-            </div>
-            {/* Subtotal */}
-            <div className="text-right w-16">
-              <p className="font-bold text-sm text-gray-900 dark:text-white">{formatCurrency(item.price * item.quantity)}</p>
-            </div>
-            {/* Remove */}
-            <button onClick={() => removeFromCart(item.product._id)}
-              className="text-red-400 hover:text-red-600 p-1 rounded transition-all flex-shrink-0">✕</button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Summary */}
@@ -91,3 +109,4 @@ export default function CartPage() {
     </div>
   );
 }
+
