@@ -5,6 +5,8 @@ import { useSocket } from './hooks/useSocket';
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 
 // Customer Pages
 import CustomerLayout from './pages/customer/CustomerLayout';
@@ -74,6 +76,8 @@ export default function App() {
       {/* Auth */}
       <Route path="/login"    element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+      <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
+      <Route path="/reset-password/:token" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
 
       {/* Customer — redirect sellers/admins to their dashboard */}
       <Route path="/" element={<CustomerRoute><CustomerLayout /></CustomerRoute>}>

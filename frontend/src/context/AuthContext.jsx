@@ -81,6 +81,37 @@ export const AuthProvider = ({ children }) => {
     toast.success('Logged out successfully');
   };
 
+  const forgotPassword = async (email) => {
+    setLoading(true);
+    try {
+      const res = await api.post('/auth/forgot-password', { email });
+      toast.success(res.data.message || 'Email sent successfully');
+      return { success: true };
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to send email';
+      toast.error(msg);
+      return { success: false, message: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetPassword = async (token, password) => {
+    setLoading(true);
+    try {
+      const res = await api.put(`/auth/reset-password/${token}`, { password });
+      saveSession(res.data.token, res.data.user);
+      toast.success('Password reset successfully');
+      return { success: true, role: res.data.user.role };
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to reset password';
+      toast.error(msg);
+      return { success: false, message: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateUser = (updates) => {
     const updated = { ...user, ...updates };
     localStorage.setItem('user', JSON.stringify(updated));
@@ -88,7 +119,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, register, login, logout, updateUser, forgotPassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
