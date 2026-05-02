@@ -12,7 +12,8 @@ export const useSocket = () => {
     if (!user) return;
 
     if (!socketInstance) {
-      socketInstance = io('/', { transports: ['websocket'] });
+      const socketUrl = import.meta.env.VITE_API_URL || '/';
+      socketInstance = io(socketUrl, { transports: ['websocket'] });
     }
     socketRef.current = socketInstance;
 
