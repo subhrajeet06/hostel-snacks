@@ -45,7 +45,12 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="label">Password</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="label mb-0">Password</label>
+                <span className="text-[10px] text-gray-500 font-medium">
+                  Forgot Password? <a href="tel:+911234567890" className="text-orange-600 hover:underline font-bold">Contact us</a>
+                </span>
+              </div>
               <input
                 className="input"
                 type="password"
