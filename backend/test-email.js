@@ -13,7 +13,7 @@ const testEmail = async () => {
   try {
     const info = await transporter.sendMail({
       from: '"HostelBite" <hostelbite7@gmail.com>',
-      to: 'brainblitz06@gmail.com',
+      to: 'aslofiworld06@gmail.com',
       subject: 'Test Email',
       text: 'This is a test email for testing reset password feature',
     });
