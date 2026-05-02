@@ -1,28 +1,21 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 const sendEmail = async (options) => {
-  // Use mailtrap or a real SMTP server for sending emails
-  // For production, use SendGrid, Mailgun, Amazon SES, or Gmail App Passwords
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    auth: {
-      user: process.env.SMTP_EMAIL,
-      pass: process.env.SMTP_PASSWORD,
-    },
-  });
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
-  const message = {
+  const { data, error } = await resend.emails.send({
     from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
     to: options.email,
     subject: options.subject,
     text: options.message,
     html: options.html,
-  };
+  });
 
-  const info = await transporter.sendMail(message);
+  if (error) {
+    throw new Error(error.message);
+  }
 
-  console.log('Message sent: %s', info.messageId);
+  console.log('Message sent: %s', data?.id);
 };
 
 module.exports = sendEmail;

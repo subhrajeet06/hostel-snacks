@@ -1,9 +1,5 @@
 require('dotenv').config();
 require('express-async-errors');
-const dns = require('dns');
-
-// Fix for Node.js IPv6 DNS resolution issues on platforms like Render causing ENETUNREACH
-dns.setDefaultResultOrder('ipv4first');
 
 const express = require('express');
 const cors = require('cors');
