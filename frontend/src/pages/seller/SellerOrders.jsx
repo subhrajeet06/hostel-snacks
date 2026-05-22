@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../utils/api';
 import { formatCurrency, formatDate, statusColor, statusLabel } from '../../utils/helpers';
 import toast from 'react-hot-toast';
-import { getSocket } from '../../hooks/useSocket';
+import { subscribeSocketEvent } from '../../hooks/useSocket';
 
 const STATUS_FLOW = ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered'];
 const FILTERS = ['all', 'pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
@@ -14,7 +14,7 @@ export default function SellerOrders() {
   const [updating, setUpdating] = useState(null);
   const [expanded, setExpanded] = useState(null);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const q = filter !== 'all' ? `?status=${filter}` : '';
@@ -22,17 +22,16 @@ export default function SellerOrders() {
       setOrders(res.data.orders);
     } catch {}
     setLoading(false);
-  };
+  }, [filter]);
 
-  useEffect(() => { fetchOrders(); }, [filter]);
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   useEffect(() => {
-    const socket = getSocket();
-    if (socket) {
-      socket.on('new_order', () => { toast.success('🛎️ New order received!'); fetchOrders(); });
-      return () => socket.off('new_order');
-    }
-  }, []);
+    return subscribeSocketEvent('new_order', () => {
+      toast.success('New order received!');
+      fetchOrders();
+    });
+  }, [fetchOrders]);
 
   const updateStatus = async (orderId, status) => {
     setUpdating(orderId);
@@ -112,7 +111,7 @@ export default function SellerOrders() {
                     {order.items.map((item, i) => (
                       <div key={i} className="flex items-center gap-3 text-sm">
                         <img src={item.image || `https://via.placeholder.com/40x40?text=${encodeURIComponent(item.name)}`}
-                          alt={item.name} className="w-10 h-10 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
+                          alt={item.name} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
                         <span className="flex-1 text-gray-700 dark:text-gray-300">{item.name} × {item.quantity}</span>
                         <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.price * item.quantity)}</span>
                       </div>

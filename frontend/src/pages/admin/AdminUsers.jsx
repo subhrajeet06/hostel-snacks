@@ -2,31 +2,37 @@ import { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 const ROLES = ['all','customer','seller','admin'];
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [showAdd, setShowAdd] = useState(false);
   const [newSeller, setNewSeller] = useState({ name: '', email: '', password: '', phone: '' });
   const [adding, setAdding] = useState(false);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const pageSize = 50;
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const q = new URLSearchParams();
+      const q = new URLSearchParams({ page: String(page), limit: String(pageSize) });
       if (filter !== 'all') q.set('role', filter);
-      if (search) q.set('search', search);
+      if (debouncedSearch.trim()) q.set('search', debouncedSearch.trim());
       const res = await api.get(`/admin/users?${q}`);
       setUsers(res.data.users);
+      setTotal(res.data.total);
     } catch {}
     setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(); }, [filter]);
+  useEffect(() => { fetchUsers(); }, [debouncedSearch, filter, page]);
 
   const toggleActive = async (user) => {
     try {
@@ -61,12 +67,14 @@ export default function AdminUsers() {
       toast.success('Seller account created!');
       setShowAdd(false);
       setNewSeller({ name: '', email: '', password: '', phone: '' });
+      setPage(1);
       fetchUsers();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
     setAdding(false);
   };
 
   const roleBadge = { customer: 'bg-blue-100 text-blue-700', seller: 'bg-purple-100 text-purple-700', admin: 'bg-orange-100 text-orange-700' };
+  const pages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div>
@@ -98,7 +106,7 @@ export default function AdminUsers() {
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="flex gap-2 overflow-x-auto pb-1">
           {ROLES.map((r) => (
-            <button key={r} onClick={() => setFilter(r)}
+            <button key={r} onClick={() => { setFilter(r); setPage(1); }}
               className={`flex-shrink-0 capitalize px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                 filter === r ? 'bg-orange-500 text-white' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
               }`}>
@@ -106,8 +114,8 @@ export default function AdminUsers() {
             </button>
           ))}
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); fetchUsers(); }} className="flex gap-2 flex-1">
-          <input className="input flex-1 text-sm" placeholder="Search by name..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <form onSubmit={(e) => { e.preventDefault(); setPage(1); fetchUsers(); }} className="flex gap-2 flex-1">
+          <input className="input flex-1 text-sm" placeholder="Search by name or email..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           <button type="submit" className="btn-secondary px-3 py-2 text-sm">🔍</button>
         </form>
       </div>
@@ -163,6 +171,13 @@ export default function AdminUsers() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+      {pages > 1 && (
+        <div className="flex justify-center gap-2 mt-5">
+          <button disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="btn-secondary text-sm py-2 disabled:opacity-40">Prev</button>
+          <span className="flex items-center text-sm text-gray-500">Page {page} of {pages}</span>
+          <button disabled={page >= pages} onClick={() => setPage((value) => value + 1)} className="btn-secondary text-sm py-2 disabled:opacity-40">Next</button>
         </div>
       )}
     </div>

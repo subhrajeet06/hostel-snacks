@@ -74,4 +74,11 @@ userSchema.methods.getResetPasswordToken = function () {
   return resetToken;
 };
 
+userSchema.index({ role: 1, isActive: 1, createdAt: -1 });
+userSchema.index({ resetPasswordToken: 1, resetPasswordExpire: 1 });
+userSchema.index(
+  { name: 'text', email: 'text' },
+  { weights: { name: 8, email: 4 }, name: 'UserTextSearch' }
+);
+
 module.exports = mongoose.model('User', userSchema);

@@ -66,5 +66,15 @@ productSchema.virtual('discountedPrice').get(function () {
 });
 
 productSchema.set('toJSON', { virtuals: true });
+productSchema.set('toObject', { virtuals: true });
+
+productSchema.index({ isAvailable: 1, stock: 1, createdAt: -1 });
+productSchema.index({ category: 1, isAvailable: 1, stock: 1, price: 1 });
+productSchema.index({ isAvailable: 1, stock: 1, salesCount: -1 });
+productSchema.index({ seller: 1, createdAt: -1 });
+productSchema.index(
+  { name: 'text', description: 'text' },
+  { weights: { name: 10, description: 2 }, name: 'ProductTextSearch' }
+);
 
 module.exports = mongoose.model('Product', productSchema);

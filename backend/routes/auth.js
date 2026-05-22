@@ -18,17 +18,18 @@ const generateToken = (id) => {
 // @access  Public
 router.post('/register', async (req, res) => {
   const { name, email, password, phone, roomNumber } = req.body;
+  const normalizedEmail = String(email || '').trim().toLowerCase();
 
-  if (!name || !email || !password) {
+  if (!name || !normalizedEmail || !password) {
     return res.status(400).json({ success: false, message: 'Please provide name, email and password' });
   }
 
-  const existingUser = await User.findOne({ email });
+  const existingUser = await User.exists({ email: normalizedEmail });
   if (existingUser) {
     return res.status(400).json({ success: false, message: 'Email already registered' });
   }
 
-  const user = await User.create({ name, email, password, phone, roomNumber, role: 'customer' });
+  const user = await User.create({ name, email: normalizedEmail, password, phone, roomNumber, role: 'customer' });
 
   res.status(201).json({
     success: true,
@@ -43,12 +44,13 @@ router.post('/register', async (req, res) => {
 // @access  Public
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  const normalizedEmail = String(email || '').trim().toLowerCase();
 
-  if (!email || !password) {
+  if (!normalizedEmail || !password) {
     return res.status(400).json({ success: false, message: 'Please provide email and password' });
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: normalizedEmail }).select('name email password role phone roomNumber isActive');
   if (!user || !(await user.matchPassword(password))) {
     return res.status(401).json({ success: false, message: 'Invalid email or password' });
   }
@@ -69,8 +71,8 @@ router.post('/login', async (req, res) => {
 // @desc    Get logged in user profile
 // @access  Private
 router.get('/me', protect, async (req, res) => {
-  const user = await User.findById(req.user.id).select('-password');
-  res.json({ success: true, user });
+  res.set('Cache-Control', 'private, no-store');
+  res.json({ success: true, user: req.user });
 });
 
 // @route   PUT /api/auth/profile
@@ -108,7 +110,8 @@ router.put('/change-password', protect, async (req, res) => {
 // @desc    Forgot password
 // @access  Public
 router.post('/forgot-password', async (req, res) => {
-  const user = await User.findOne({ email: req.body.email });
+  const normalizedEmail = String(req.body.email || '').trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
     return res.status(404).json({ success: false, message: 'There is no user with that email' });

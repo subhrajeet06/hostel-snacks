@@ -56,7 +56,7 @@ export default function SellerProducts() {
           {products.map((product) => (
             <div key={product._id} className="card p-4 flex items-center gap-4">
               <img src={product.image || `https://via.placeholder.com/60x60?text=${encodeURIComponent(product.name)}`}
-                alt={product.name} className="w-14 h-14 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
+                alt={product.name} loading="lazy" decoding="async" className="w-14 h-14 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">

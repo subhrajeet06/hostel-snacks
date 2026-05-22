@@ -1,9 +1,37 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 const { protect, authorize } = require('../middleware/auth');
+const { delByPrefix } = require('../utils/cache');
+const { discountedPrice, parsePagination } = require('../utils/query');
+
+const VALID_STATUSES = ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
+const ORDER_LIST_LIMIT = 50;
+
+const invalidateOrderCaches = () => {
+  delByPrefix('admin-stats:');
+  delByPrefix('admin-order-stats:');
+  delByPrefix('products:');
+  delByPrefix('products-home:');
+};
+
+const applyCoupon = (totalAmount, couponCode) => {
+  if (couponCode === 'HOSTEL10') return totalAmount * 0.1;
+  if (couponCode === 'FIRST20') return totalAmount * 0.2;
+  return 0;
+};
+
+const sellerOrderView = (order, sellerId) => {
+  const items = order.items.filter((item) => item.seller && item.seller.toString() === sellerId);
+  return {
+    ...order,
+    items,
+    sellerAmount: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  };
+};
 
 // @route   POST /api/orders
 // @desc    Place an order
@@ -11,44 +39,60 @@ const { protect, authorize } = require('../middleware/auth');
 router.post('/', protect, authorize('customer'), async (req, res) => {
   const { roomNumber, phoneNumber, paymentMethod, upiTransactionId, notes, couponCode } = req.body;
 
-  const cart = await Cart.findOne({ user: req.user.id }).populate('items.product');
+  const cart = await Cart.findOne({ user: req.user.id }).select('items').lean();
   if (!cart || cart.items.length === 0) {
     return res.status(400).json({ success: false, message: 'Cart is empty' });
   }
 
-  // Verify stock and build order items
+  const productIds = cart.items.map((item) => item.product);
+  const products = await Product.find({ _id: { $in: productIds } })
+    .select('name image price discount stock isAvailable seller')
+    .lean();
+
+  const productMap = new Map(products.map((product) => [product._id.toString(), product]));
   const orderItems = [];
   let totalAmount = 0;
 
   for (const item of cart.items) {
-    const product = await Product.findById(item.product._id);
+    const product = productMap.get(item.product.toString());
     if (!product || !product.isAvailable) {
-      return res.status(400).json({ success: false, message: `${item.product.name} is no longer available` });
+      return res.status(400).json({ success: false, message: 'One or more products are no longer available' });
     }
     if (product.stock < item.quantity) {
       return res.status(400).json({ success: false, message: `Insufficient stock for ${product.name}` });
     }
 
-    const price = product.price - (product.price * product.discount) / 100;
-    orderItems.push({ product: product._id, seller: product.seller, name: product.name, image: product.image, price, quantity: item.quantity });
+    const price = discountedPrice(product);
+    orderItems.push({
+      product: product._id,
+      seller: product.seller,
+      name: product.name,
+      image: product.image,
+      price,
+      quantity: item.quantity,
+    });
     totalAmount += price * item.quantity;
-
-    // Deduct stock
-    product.stock -= item.quantity;
-    product.salesCount += item.quantity;
-    await product.save();
   }
 
-  // Apply coupon discount (basic implementation)
-  let discount = 0;
-  if (couponCode === 'HOSTEL10') discount = totalAmount * 0.1;
-  if (couponCode === 'FIRST20') discount = totalAmount * 0.2;
-  totalAmount = Math.max(0, totalAmount - discount);
+  const discount = applyCoupon(totalAmount, couponCode);
+  const finalAmount = Math.max(0, totalAmount - discount);
+
+  const stockOps = orderItems.map((item) => ({
+    updateOne: {
+      filter: { _id: item.product, isAvailable: true, stock: { $gte: item.quantity } },
+      update: { $inc: { stock: -item.quantity, salesCount: item.quantity } },
+    },
+  }));
+
+  const stockResult = await Product.bulkWrite(stockOps, { ordered: true });
+  if (stockResult.modifiedCount !== stockOps.length) {
+    return res.status(409).json({ success: false, message: 'Stock changed while placing order. Please review your cart.' });
+  }
 
   const order = await Order.create({
     user: req.user.id,
     items: orderItems,
-    totalAmount,
+    totalAmount: finalAmount,
     roomNumber,
     phoneNumber,
     paymentMethod,
@@ -56,79 +100,88 @@ router.post('/', protect, authorize('customer'), async (req, res) => {
     notes: notes || '',
     discount,
     couponCode: couponCode || '',
-    paymentStatus: paymentMethod === 'cod' ? 'pending' : 'pending',
+    paymentStatus: 'pending',
     statusHistory: [{ status: 'pending', note: 'Order placed' }],
   });
 
-  // Clear cart after order
-  await Cart.findOneAndUpdate({ user: req.user.id }, { items: [] });
+  await Cart.updateOne({ user: req.user.id }, { $set: { items: [] } });
+  invalidateOrderCaches();
 
-  // Emit socket event to sellers
   const io = req.app.get('io');
   if (io) io.to('sellers').emit('new_order', { orderId: order._id, totalAmount: order.totalAmount });
 
-  await order.populate('user', 'name email');
-  res.status(201).json({ success: true, order });
+  const responseOrder = await Order.findById(order._id)
+    .populate('user', 'name email')
+    .lean();
+
+  res.status(201).json({ success: true, order: responseOrder });
 });
 
 // @route   GET /api/orders/my
 // @desc    Get customer's orders
 // @access  Customer
 router.get('/my', protect, authorize('customer'), async (req, res) => {
-  const orders = await Order.find({ user: req.user.id }).sort({ createdAt: -1 });
+  const orders = await Order.find({ user: req.user.id })
+    .select('items totalAmount roomNumber phoneNumber paymentMethod paymentStatus status statusHistory discount couponCode notes createdAt updatedAt')
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(ORDER_LIST_LIMIT)
+    .lean();
+
+  res.set('Cache-Control', 'private, no-store');
   res.json({ success: true, orders });
-});
-
-// @route   GET /api/orders/:id
-// @desc    Get single order
-// @access  Customer (own) / Seller / Admin
-router.get('/:id', protect, async (req, res) => {
-  const order = await Order.findById(req.params.id).populate('user', 'name email phone');
-  if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-
-  if (req.user.role === 'customer' && order.user._id.toString() !== req.user.id) {
-    return res.status(403).json({ success: false, message: 'Not authorized' });
-  }
-
-  res.json({ success: true, order });
 });
 
 // @route   GET /api/orders/seller/all
 // @desc    Get orders for seller (only their items) or all orders for admin
 // @access  Seller / Admin
 router.get('/seller/all', protect, authorize('seller', 'admin'), async (req, res) => {
-  const { status, page = 1, limit = 20 } = req.query;
+  const { status } = req.query;
+  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
   const isAdmin = req.user.role === 'admin';
 
-  // Build query — sellers only see orders containing their items
   const query = {};
   if (status) query.status = status;
-  if (!isAdmin) {
-    query['items.seller'] = req.user.id;
+  if (!isAdmin) query['items.seller'] = req.user.id;
+
+  const [total, rawOrders] = await Promise.all([
+    Order.countDocuments(query),
+    Order.find(query)
+      .populate('user', 'name email phone')
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  const orders = isAdmin ? rawOrders : rawOrders.map((order) => sellerOrderView(order, req.user.id));
+
+  res.set('Cache-Control', 'private, no-store');
+  res.json({ success: true, total, page, pages: Math.ceil(total / limit), orders });
+});
+
+// @route   GET /api/orders/:id
+// @desc    Get single order
+// @access  Customer (own) / Seller / Admin
+router.get('/:id', protect, async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ success: false, message: 'Order not found' });
   }
 
-  const skip = (page - 1) * limit;
-  const total = await Order.countDocuments(query);
-  const rawOrders = await Order.find(query)
+  const order = await Order.findById(req.params.id)
     .populate('user', 'name email phone')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(Number(limit));
+    .lean();
 
-  // For sellers, filter items to only their own and recalculate the seller-specific amount
-  let orders;
-  if (!isAdmin) {
-    orders = rawOrders.map((order) => {
-      const o = order.toObject();
-      o.items = o.items.filter((item) => item.seller && item.seller.toString() === req.user.id);
-      o.sellerAmount = o.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      return o;
-    });
-  } else {
-    orders = rawOrders;
+  if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+  if (req.user.role === 'customer' && order.user._id.toString() !== req.user.id) {
+    return res.status(403).json({ success: false, message: 'Not authorized' });
+  }
+  if (req.user.role === 'seller' && !order.items.some((item) => item.seller?.toString() === req.user.id)) {
+    return res.status(403).json({ success: false, message: 'Not authorized' });
   }
 
-  res.json({ success: true, total, orders });
+  res.set('Cache-Control', 'private, no-store');
+  res.json({ success: true, order: req.user.role === 'seller' ? sellerOrderView(order, req.user.id) : order });
 });
 
 // @route   PUT /api/orders/:id/status
@@ -136,20 +189,29 @@ router.get('/seller/all', protect, authorize('seller', 'admin'), async (req, res
 // @access  Seller / Admin
 router.put('/:id/status', protect, authorize('seller', 'admin'), async (req, res) => {
   const { status, note } = req.body;
-  const validStatuses = ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
-  if (!validStatuses.includes(status)) {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ success: false, message: 'Order not found' });
+  }
+  if (!VALID_STATUSES.includes(status)) {
     return res.status(400).json({ success: false, message: 'Invalid status' });
   }
 
-  const order = await Order.findById(req.params.id);
+  const query = { _id: req.params.id };
+  if (req.user.role === 'seller') query['items.seller'] = req.user.id;
+
+  const update = {
+    $set: {
+      status,
+      ...(status === 'delivered' ? { paymentStatus: 'paid' } : {}),
+    },
+    $push: { statusHistory: { status, note: note || '' } },
+  };
+
+  const order = await Order.findOneAndUpdate(query, update, { new: true, runValidators: true }).lean();
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-  order.status = status;
-  order.statusHistory.push({ status, note: note || '' });
-  if (status === 'delivered') order.paymentStatus = 'paid';
-  await order.save();
+  invalidateOrderCaches();
 
-  // Emit real-time update to customer
   const io = req.app.get('io');
   if (io) {
     io.to(`user_${order.user}`).emit('order_status_update', {
@@ -159,32 +221,43 @@ router.put('/:id/status', protect, authorize('seller', 'admin'), async (req, res
     });
   }
 
-  res.json({ success: true, order });
+  res.json({ success: true, order: req.user.role === 'seller' ? sellerOrderView(order, req.user.id) : order });
 });
 
 // @route   PUT /api/orders/:id/cancel
 // @desc    Cancel order (customer)
 // @access  Customer
 router.put('/:id/cancel', protect, authorize('customer'), async (req, res) => {
-  const order = await Order.findById(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ success: false, message: 'Order not found' });
+  }
+
+  const order = await Order.findOne({ _id: req.params.id, user: req.user.id }).lean();
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-  if (order.user.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Not authorized' });
   if (['delivered', 'cancelled', 'out_for_delivery'].includes(order.status)) {
     return res.status(400).json({ success: false, message: 'Order cannot be cancelled at this stage' });
   }
 
-  // Restore stock
-  for (const item of order.items) {
-    await Product.findByIdAndUpdate(item.product, {
-      $inc: { stock: item.quantity, salesCount: -item.quantity },
-    });
-  }
+  const restoreOps = order.items.map((item) => ({
+    updateOne: {
+      filter: { _id: item.product },
+      update: { $inc: { stock: item.quantity, salesCount: -item.quantity } },
+    },
+  }));
 
-  order.status = 'cancelled';
-  order.statusHistory.push({ status: 'cancelled', note: 'Cancelled by customer' });
-  await order.save();
+  if (restoreOps.length) await Product.bulkWrite(restoreOps, { ordered: false });
 
-  res.json({ success: true, order });
+  const updatedOrder = await Order.findByIdAndUpdate(
+    req.params.id,
+    {
+      $set: { status: 'cancelled' },
+      $push: { statusHistory: { status: 'cancelled', note: 'Cancelled by customer' } },
+    },
+    { new: true, runValidators: true }
+  ).lean();
+
+  invalidateOrderCaches();
+  res.json({ success: true, order: updatedOrder });
 });
 
 module.exports = router;

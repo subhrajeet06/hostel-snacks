@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatCurrency, formatDate, statusColor, statusLabel } from '../../utils/helpers';
-import { getSocket } from '../../hooks/useSocket';
+import { subscribeSocketEvent } from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
 export default function SellerDashboard() {
@@ -10,7 +10,7 @@ export default function SellerDashboard() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [ordRes, proRes] = await Promise.all([
         api.get('/orders/seller/all?limit=5'),
@@ -20,26 +20,22 @@ export default function SellerDashboard() {
       setProducts(proRes.data.products);
     } catch {}
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-    const socket = getSocket();
-    if (socket) {
-      socket.on('new_order', ({ orderId, totalAmount }) => {
-        toast.success(`🛎️ New order! ₹${totalAmount}`);
-        fetchData();
-      });
-      return () => socket.off('new_order');
-    }
-  }, []);
+    return subscribeSocketEvent('new_order', ({ totalAmount }) => {
+      toast.success(`New order! ${formatCurrency(totalAmount)}`);
+      fetchData();
+    });
+  }, [fetchData]);
 
-  const stats = {
+  const stats = useMemo(() => ({
     total: orders.length,
     pending: orders.filter((o) => o.status === 'pending').length,
     revenue: orders.filter((o) => o.status === 'delivered').reduce((s, o) => s + (o.sellerAmount ?? o.totalAmount), 0),
     lowStock: products.filter((p) => p.stock < 5).length,
-  };
+  }), [orders, products]);
 
   if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
 
@@ -110,7 +106,7 @@ export default function SellerDashboard() {
               {products.slice(0, 5).map((p) => (
                 <div key={p._id} className="flex items-center gap-3 py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
                   <img src={p.image || `https://via.placeholder.com/40x40?text=${encodeURIComponent(p.name)}`}
-                    alt={p.name} className="w-10 h-10 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
+                    alt={p.name} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
                     <p className="text-xs text-gray-500">Stock: {p.stock}</p>

@@ -2,22 +2,30 @@ import { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import { formatCurrency, categoryLabel } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const pageSize = 50;
 
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/admin/products');
+      const q = new URLSearchParams({ page: String(page), limit: String(pageSize) });
+      if (debouncedSearch.trim()) q.set('search', debouncedSearch.trim());
+      const res = await api.get(`/admin/products?${q.toString()}`);
       setProducts(res.data.products);
+      setTotal(res.data.total);
     } catch {}
     setLoading(false);
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { fetchProducts(); }, [debouncedSearch, page]);
 
   const toggleAvailable = async (product) => {
     try {
@@ -36,21 +44,18 @@ export default function AdminProducts() {
     } catch { toast.error('Delete failed'); }
   };
 
-  const filtered = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.seller?.name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const pages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="page-header mb-0">All Products 🏪</h1>
-        <span className="text-sm text-gray-500 font-medium">{products.length} total</span>
+        <span className="text-sm text-gray-500 font-medium">{total} total</span>
       </div>
 
       <div className="mb-4">
-        <input className="input max-w-sm" placeholder="Search products or seller..." value={search}
-          onChange={(e) => setSearch(e.target.value)} />
+        <input className="input max-w-sm" placeholder="Search products..." value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
       </div>
 
       {loading ? (
@@ -67,12 +72,12 @@ export default function AdminProducts() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                {filtered.map((p) => (
+                {products.map((p) => (
                   <tr key={p._id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <img src={p.image || `https://via.placeholder.com/40x40?text=${encodeURIComponent(p.name)}`}
-                          alt={p.name} className="w-10 h-10 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
+                          alt={p.name} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white">{p.name}</p>
                           {p.discount > 0 && <span className="text-xs text-orange-500">{p.discount}% off</span>}
@@ -99,12 +104,19 @@ export default function AdminProducts() {
                     </td>
                   </tr>
                 ))}
-                {filtered.length === 0 && (
+                {products.length === 0 && (
                   <tr><td colSpan={7} className="text-center py-10 text-gray-400">No products found</td></tr>
                 )}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+      {pages > 1 && (
+        <div className="flex justify-center gap-2 mt-5">
+          <button disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="btn-secondary text-sm py-2 disabled:opacity-40">Prev</button>
+          <span className="flex items-center text-sm text-gray-500">Page {page} of {pages}</span>
+          <button disabled={page >= pages} onClick={() => setPage((value) => value + 1)} className="btn-secondary text-sm py-2 disabled:opacity-40">Next</button>
         </div>
       )}
     </div>

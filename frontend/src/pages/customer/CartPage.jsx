@@ -40,6 +40,8 @@ export default function CartPage() {
               <img
                 src={product?.image || `https://via.placeholder.com/80x80?text=🍟`}
                 alt={product?.name || 'Unavailable'}
+                loading="lazy"
+                decoding="async"
                 className="w-16 h-16 object-cover rounded-xl bg-gray-100 flex-shrink-0"
                 onError={(e) => { e.target.src = `https://via.placeholder.com/80x80?text=🍟`; }}
               />
@@ -109,4 +111,3 @@ export default function CartPage() {
     </div>
   );
 }
-

@@ -11,7 +11,7 @@ const QR_CODE_URL = '/qr-code.png'; // local QR code image in public folder
 const COUPONS = { HOSTEL10: 0.10, FIRST20: 0.20 };
 
 export default function CheckoutPage() {
-  const { cart } = useCart();
+  const { cart, resetCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -68,6 +68,7 @@ export default function CheckoutPage() {
         couponCode: couponApplied || '',
       });
       toast.success('Order placed! 🎉');
+      resetCart();
       navigate(`/order-success/${res.data.order._id}`);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to place order');
@@ -148,7 +149,7 @@ export default function CheckoutPage() {
               {showQR && (
                 <div className="flex justify-center mb-3">
                   <div className="bg-white p-3 rounded-xl border border-gray-200 text-center">
-                    <img src={QR_CODE_URL} alt="Scan to pay" className="w-32 h-32 rounded-lg object-cover" />
+                    <img src={QR_CODE_URL} alt="Scan to pay" loading="lazy" decoding="async" className="w-32 h-32 rounded-lg object-cover" />
                     <p className="text-xs text-gray-500 mt-2">Scan to pay</p>
                   </div>
                 </div>

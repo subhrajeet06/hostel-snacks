@@ -1,31 +1,63 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 
 let socketInstance = null;
+const pendingListeners = new Map();
+
+const socketUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || '/';
+  return apiUrl.replace(/\/api\/?$/, '') || '/';
+};
+
+const attachPendingListeners = (socket) => {
+  for (const [event, handlers] of pendingListeners.entries()) {
+    for (const handler of handlers) socket.on(event, handler);
+  }
+};
+
+export const subscribeSocketEvent = (event, handler) => {
+  if (!pendingListeners.has(event)) pendingListeners.set(event, new Set());
+  pendingListeners.get(event).add(handler);
+
+  if (socketInstance) socketInstance.on(event, handler);
+
+  return () => {
+    pendingListeners.get(event)?.delete(handler);
+    if (socketInstance) socketInstance.off(event, handler);
+  };
+};
 
 export const useSocket = () => {
   const { user } = useAuth();
-  const socketRef = useRef(null);
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
-    if (!user) return;
-
-    if (!socketInstance) {
-      const socketUrl = import.meta.env.VITE_API_URL || '/';
-      socketInstance = io(socketUrl, { transports: ['websocket'] });
+    if (!user || !token) {
+      if (socketInstance) {
+        socketInstance.disconnect();
+        socketInstance = null;
+      }
+      return undefined;
     }
-    socketRef.current = socketInstance;
 
-    // Join rooms based on role
-    socketInstance.emit('join', { role: user.role, userId: user.id });
+    const socket = io(socketUrl(), {
+      auth: { token },
+      transports: ['websocket'],
+      reconnectionAttempts: 5,
+      timeout: 5000,
+    });
+
+    socketInstance = socket;
+    attachPendingListeners(socket);
 
     return () => {
-      // Don't disconnect globally on unmount; keep alive
+      socket.disconnect();
+      if (socketInstance === socket) socketInstance = null;
     };
-  }, [user]);
+  }, [token, user?.id, user?.role]);
 
-  return socketRef.current;
+  return socketInstance;
 };
 
 export const getSocket = () => socketInstance;

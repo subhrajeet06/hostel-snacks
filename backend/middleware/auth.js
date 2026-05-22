@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { safeUserProjection } = require('../utils/query');
 
 // Verify JWT token
 const protect = async (req, res, next) => {
@@ -15,10 +16,11 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select('-password');
-    if (!req.user) {
+    const user = await User.findById(decoded.id).select(safeUserProjection).lean();
+    if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
+    req.user = { ...user, id: user._id.toString() };
     next();
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Token invalid or expired' });

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatCurrency, formatDate, statusLabel, statusColor, orderStatusSteps, getStepIndex } from '../../utils/helpers';
-import { getSocket } from '../../hooks/useSocket';
+import { subscribeSocketEvent } from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
 export default function OrderDetailPage() {
@@ -12,22 +12,18 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
 
-  const fetchOrder = () =>
-    api.get(`/orders/${id}`).then((res) => setOrder(res.data.order)).catch(() => {}).finally(() => setLoading(false));
+  const fetchOrder = useCallback(() =>
+    api.get(`/orders/${id}`).then((res) => setOrder(res.data.order)).catch(() => {}).finally(() => setLoading(false)), [id]);
 
   useEffect(() => {
     fetchOrder();
-    const socket = getSocket();
-    if (socket) {
-      socket.on('order_status_update', ({ orderId, status, note }) => {
-        if (orderId === id || orderId?.toString() === id) {
-          setOrder((prev) => prev ? { ...prev, status } : prev);
-          toast.success(`Order ${statusLabel[status]}! ${status === 'delivered' ? '🎉' : '📦'}`);
-        }
-      });
-      return () => socket.off('order_status_update');
-    }
-  }, [id]);
+    return subscribeSocketEvent('order_status_update', ({ orderId, status }) => {
+      if (orderId === id || orderId?.toString() === id) {
+        setOrder((prev) => prev ? { ...prev, status } : prev);
+        toast.success(`Order ${statusLabel[status]}!`);
+      }
+    });
+  }, [fetchOrder, id]);
 
   const cancelOrder = async () => {
     if (!confirm('Cancel this order?')) return;
@@ -108,7 +104,7 @@ export default function OrderDetailPage() {
           {order.items.map((item, i) => (
             <div key={i} className="flex items-center gap-3">
               <img src={item.image || `https://via.placeholder.com/60x60?text=${encodeURIComponent(item.name)}`}
-                alt={item.name} className="w-12 h-12 rounded-xl object-cover bg-gray-100" />
+                alt={item.name} loading="lazy" decoding="async" className="w-12 h-12 rounded-xl object-cover bg-gray-100" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</p>
                 <p className="text-xs text-gray-500">{formatCurrency(item.price)} each</p>

@@ -1,64 +1,172 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Product = require('../models/Product');
 const { protect, authorize } = require('../middleware/auth');
+const { delByPrefix, getOrSet, stableKey } = require('../utils/cache');
+const {
+  cleanSearchTerm,
+  parsePagination,
+  productProjection,
+  shapeProduct,
+  shapeProducts,
+} = require('../utils/query');
 
-// @route   GET /api/products
-// @desc    Get all available products (with search & filter)
-// @access  Public
-router.get('/', async (req, res) => {
-  const { category, search, sort, minPrice, maxPrice, page = 1, limit = 20 } = req.query;
+const PRODUCT_CACHE_TTL = 30;
+const TOP_PRODUCT_CACHE_TTL = 60;
 
+const invalidateProductCaches = () => {
+  delByPrefix('products:');
+  delByPrefix('products-home:');
+  delByPrefix('admin-stats:');
+  delByPrefix('admin-order-stats:');
+};
+
+const buildProductQuery = ({ category, search, minPrice, maxPrice }) => {
   const query = { isAvailable: true, stock: { $gt: 0 } };
+  const searchTerm = cleanSearchTerm(search);
 
   if (category && category !== 'all') query.category = category;
-  if (search) query.name = { $regex: search, $options: 'i' };
+  if (searchTerm) query.$text = { $search: searchTerm };
   if (minPrice || maxPrice) {
     query.price = {};
-    if (minPrice) query.price.$gte = Number(minPrice);
-    if (maxPrice) query.price.$lte = Number(maxPrice);
+    const min = Number(minPrice);
+    const max = Number(maxPrice);
+    if (Number.isFinite(min)) query.price.$gte = min;
+    if (Number.isFinite(max)) query.price.$lte = max;
   }
 
-  let sortObj = { createdAt: -1 };
-  if (sort === 'price_asc') sortObj = { price: 1 };
-  if (sort === 'price_desc') sortObj = { price: -1 };
-  if (sort === 'popular') sortObj = { salesCount: -1 };
+  return { query, searchTerm };
+};
 
-  const skip = (Number(page) - 1) * Number(limit);
-  const total = await Product.countDocuments(query);
-  const products = await Product.find(query)
-    .populate('seller', 'name')
-    .sort(sortObj)
-    .skip(skip)
-    .limit(Number(limit));
+const buildProductSort = (sort, searchTerm) => {
+  if (sort === 'price_asc') return { price: 1, _id: 1 };
+  if (sort === 'price_desc') return { price: -1, _id: 1 };
+  if (sort === 'popular') return { salesCount: -1, _id: 1 };
+  if (searchTerm) return { score: { $meta: 'textScore' }, createdAt: -1 };
+  return { createdAt: -1, _id: -1 };
+};
 
-  res.json({
-    success: true,
-    total,
-    page: Number(page),
-    pages: Math.ceil(total / limit),
-    products,
+const publicCacheHeaders = (res, hit, seconds = PRODUCT_CACHE_TTL) => {
+  res.set('Cache-Control', `public, max-age=${seconds}, stale-while-revalidate=${seconds * 2}`);
+  res.set('X-Cache', hit ? 'HIT' : 'MISS');
+};
+
+// @route   GET /api/products
+// @desc    Get available products with indexed search/filter/sort
+// @access  Public
+router.get('/', async (req, res) => {
+  const { category, search, sort, minPrice, maxPrice } = req.query;
+  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
+  const cacheKey = stableKey('products:list', { category, search, sort, minPrice, maxPrice, page, limit });
+
+  const { value, hit } = await getOrSet(cacheKey, PRODUCT_CACHE_TTL, async () => {
+    const { query, searchTerm } = buildProductQuery({ category, search, minPrice, maxPrice });
+    const projection = searchTerm ? { ...productProjection, score: { $meta: 'textScore' } } : productProjection;
+    const sortObj = buildProductSort(sort, searchTerm);
+
+    const [total, products] = await Promise.all([
+      Product.countDocuments(query),
+      Product.find(query, projection)
+        .populate('seller', 'name')
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    return {
+      success: true,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      products: shapeProducts(products),
+    };
   });
+
+  publicCacheHeaders(res, hit);
+  res.json(value);
+});
+
+// @route   GET /api/products/home
+// @desc    Get home page product sections in one cached request
+// @access  Public
+router.get('/home', async (req, res) => {
+  const cacheKey = stableKey('products-home', { limit: 12 });
+
+  const { value, hit } = await getOrSet(cacheKey, TOP_PRODUCT_CACHE_TTL, async () => {
+    const baseQuery = { isAvailable: true, stock: { $gt: 0 } };
+    const [topProducts, products] = await Promise.all([
+      Product.find(baseQuery, productProjection)
+        .populate('seller', 'name')
+        .sort({ salesCount: -1, _id: 1 })
+        .limit(8)
+        .lean(),
+      Product.find(baseQuery, productProjection)
+        .populate('seller', 'name')
+        .sort({ createdAt: -1, _id: -1 })
+        .limit(12)
+        .lean(),
+    ]);
+
+    return {
+      success: true,
+      topProducts: shapeProducts(topProducts),
+      products: shapeProducts(products),
+    };
+  });
+
+  publicCacheHeaders(res, hit, TOP_PRODUCT_CACHE_TTL);
+  res.json(value);
 });
 
 // @route   GET /api/products/top
 // @desc    Get top selling products
 // @access  Public
 router.get('/top', async (req, res) => {
-  const products = await Product.find({ isAvailable: true, stock: { $gt: 0 } })
-    .sort({ salesCount: -1 })
-    .limit(8)
-    .populate('seller', 'name');
-  res.json({ success: true, products });
+  const cacheKey = stableKey('products:top', { limit: 8 });
+
+  const { value, hit } = await getOrSet(cacheKey, TOP_PRODUCT_CACHE_TTL, async () => {
+    const products = await Product.find({ isAvailable: true, stock: { $gt: 0 } }, productProjection)
+      .sort({ salesCount: -1, _id: 1 })
+      .limit(8)
+      .populate('seller', 'name')
+      .lean();
+
+    return { success: true, products: shapeProducts(products) };
+  });
+
+  publicCacheHeaders(res, hit, TOP_PRODUCT_CACHE_TTL);
+  res.json(value);
+});
+
+// @route   GET /api/products/seller/my
+// @desc    Get seller's own products
+// @access  Seller
+router.get('/seller/my', protect, authorize('seller', 'admin'), async (req, res) => {
+  const products = await Product.find({ seller: req.user.id }, productProjection)
+    .sort({ createdAt: -1, _id: -1 })
+    .lean();
+
+  res.set('Cache-Control', 'private, no-cache');
+  res.json({ success: true, products: shapeProducts(products) });
 });
 
 // @route   GET /api/products/:id
 // @desc    Get single product
 // @access  Public
 router.get('/:id', async (req, res) => {
-  const product = await Product.findById(req.params.id).populate('seller', 'name');
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
+  }
+
+  const product = await Product.findById(req.params.id, productProjection)
+    .populate('seller', 'name')
+    .lean();
+
   if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-  res.json({ success: true, product });
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  res.json({ success: true, product: shapeProduct(product) });
 });
 
 // @route   POST /api/products
@@ -67,49 +175,70 @@ router.get('/:id', async (req, res) => {
 router.post('/', protect, authorize('seller', 'admin'), async (req, res) => {
   const { name, description, price, category, image, stock, discount } = req.body;
   const product = await Product.create({
-    name, description, price, category, image, stock, discount,
+    name,
+    description,
+    price,
+    category,
+    image,
+    stock,
+    discount,
     seller: req.user.id,
   });
-  res.status(201).json({ success: true, product });
+
+  invalidateProductCaches();
+
+  const freshProduct = await Product.findById(product._id, productProjection)
+    .populate('seller', 'name')
+    .lean();
+
+  res.status(201).json({ success: true, product: shapeProduct(freshProduct) });
 });
 
 // @route   PUT /api/products/:id
 // @desc    Update product
 // @access  Seller (own) / Admin
 router.put('/:id', protect, authorize('seller', 'admin'), async (req, res) => {
-  let product = await Product.findById(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
+  }
+
+  const product = await Product.findById(req.params.id).select('seller').lean();
   if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
-  // Sellers can only edit their own products
   if (req.user.role === 'seller' && product.seller.toString() !== req.user.id) {
     return res.status(403).json({ success: false, message: 'Not authorized to edit this product' });
   }
 
-  product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-  res.json({ success: true, product });
+  const updated = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true,
+  })
+    .select(productProjection)
+    .populate('seller', 'name')
+    .lean();
+
+  invalidateProductCaches();
+  res.json({ success: true, product: shapeProduct(updated) });
 });
 
 // @route   DELETE /api/products/:id
 // @desc    Delete product
 // @access  Seller (own) / Admin
 router.delete('/:id', protect, authorize('seller', 'admin'), async (req, res) => {
-  const product = await Product.findById(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
+  }
+
+  const product = await Product.findById(req.params.id).select('seller').lean();
   if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
   if (req.user.role === 'seller' && product.seller.toString() !== req.user.id) {
     return res.status(403).json({ success: false, message: 'Not authorized to delete this product' });
   }
 
-  await product.deleteOne();
+  await Product.deleteOne({ _id: req.params.id });
+  invalidateProductCaches();
   res.json({ success: true, message: 'Product deleted' });
-});
-
-// @route   GET /api/products/seller/my
-// @desc    Get seller's own products
-// @access  Seller
-router.get('/seller/my', protect, authorize('seller', 'admin'), async (req, res) => {
-  const products = await Product.find({ seller: req.user.id }).sort({ createdAt: -1 });
-  res.json({ success: true, products });
 });
 
 module.exports = router;

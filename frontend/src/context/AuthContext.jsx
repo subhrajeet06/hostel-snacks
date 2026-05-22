@@ -1,11 +1,19 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
+const readStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('user')) || null;
+  } catch {
+    localStorage.removeItem('user');
+    return null;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]       = useState(() => JSON.parse(localStorage.getItem('user')) || null);
+  const [user, setUser]       = useState(readStoredUser);
   const [loading, setLoading] = useState(false);
 
   // Validate token on app load — if expired/invalid, clear stale session
@@ -36,13 +44,13 @@ export const AuthProvider = ({ children }) => {
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveSession = (token, userData) => {
+  const saveSession = useCallback((token, userData) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
-  };
+  }, []);
 
-  const register = async (data) => {
+  const register = useCallback(async (data) => {
     setLoading(true);
     try {
       const res = await api.post('/auth/register', data);
@@ -56,9 +64,9 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [saveSession]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     setLoading(true);
     try {
       const res = await api.post('/auth/login', { email, password });
@@ -72,16 +80,16 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [saveSession]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     toast.success('Logged out successfully');
-  };
+  }, []);
 
-  const forgotPassword = async (email) => {
+  const forgotPassword = useCallback(async (email) => {
     setLoading(true);
     try {
       const res = await api.post('/auth/forgot-password', { email });
@@ -94,9 +102,9 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const resetPassword = async (token, password) => {
+  const resetPassword = useCallback(async (token, password) => {
     setLoading(true);
     try {
       const res = await api.put(`/auth/reset-password/${token}`, { password });
@@ -110,16 +118,27 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [saveSession]);
 
-  const updateUser = (updates) => {
+  const updateUser = useCallback((updates) => {
     const updated = { ...user, ...updates };
     localStorage.setItem('user', JSON.stringify(updated));
     setUser(updated);
-  };
+  }, [user]);
+
+  const value = useMemo(() => ({
+    user,
+    loading,
+    register,
+    login,
+    logout,
+    updateUser,
+    forgotPassword,
+    resetPassword,
+  }), [forgotPassword, loading, login, logout, register, resetPassword, updateUser, user]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout, updateUser, forgotPassword, resetPassword }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

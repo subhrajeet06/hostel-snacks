@@ -41,5 +41,7 @@ cartSchema.virtual('totalItems').get(function () {
 });
 
 cartSchema.set('toJSON', { virtuals: true });
+cartSchema.set('toObject', { virtuals: true });
+cartSchema.index({ updatedAt: -1 });
 
 module.exports = mongoose.model('Cart', cartSchema);
