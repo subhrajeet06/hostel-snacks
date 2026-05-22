@@ -17,9 +17,13 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     fetchOrder();
-    return subscribeSocketEvent('order_status_update', ({ orderId, status }) => {
+    return subscribeSocketEvent('order_status_update', ({ orderId, status, note }) => {
       if (orderId === id || orderId?.toString() === id) {
-        setOrder((prev) => prev ? { ...prev, status } : prev);
+        setOrder((prev) => prev ? {
+          ...prev,
+          status,
+          statusHistory: [...prev.statusHistory, { status, note, timestamp: new Date().toISOString() }]
+        } : prev);
         toast.success(`Order ${statusLabel[status]}!`);
       }
     });
