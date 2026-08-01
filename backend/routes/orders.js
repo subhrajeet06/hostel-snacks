@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const router = express.Router();
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
@@ -7,8 +6,12 @@ const Product = require('../models/Product');
 const { protect, authorize } = require('../middleware/auth');
 const { delByPrefix } = require('../utils/cache');
 const { discountedPrice, parsePagination } = require('../utils/query');
+const {
+  placeOrderValidator,
+  updateOrderStatusValidator,
+  orderIdParamValidator,
+} = require('../validators/orderValidators');
 
-const VALID_STATUSES = ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
 const ORDER_LIST_LIMIT = 50;
 
 const invalidateOrderCaches = () => {
@@ -36,7 +39,7 @@ const sellerOrderView = (order, sellerId) => {
 // @route   POST /api/orders
 // @desc    Place an order
 // @access  Customer
-router.post('/', protect, authorize('customer'), async (req, res) => {
+router.post('/', protect, authorize('customer'), placeOrderValidator, async (req, res) => {
   const { roomNumber, phoneNumber, paymentMethod, upiTransactionId, notes, couponCode } = req.body;
 
   const cart = await Cart.findOne({ user: req.user.id }).select('items').lean();
@@ -162,11 +165,7 @@ router.get('/seller/all', protect, authorize('seller', 'admin'), async (req, res
 // @route   GET /api/orders/:id
 // @desc    Get single order
 // @access  Customer (own) / Seller / Admin
-router.get('/:id', protect, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(404).json({ success: false, message: 'Order not found' });
-  }
-
+router.get('/:id', protect, orderIdParamValidator, async (req, res) => {
   const order = await Order.findById(req.params.id)
     .populate('user', 'name email phone')
     .lean();
@@ -187,14 +186,8 @@ router.get('/:id', protect, async (req, res) => {
 // @route   PUT /api/orders/:id/status
 // @desc    Update order status
 // @access  Seller / Admin
-router.put('/:id/status', protect, authorize('seller', 'admin'), async (req, res) => {
+router.put('/:id/status', protect, authorize('seller', 'admin'), updateOrderStatusValidator, async (req, res) => {
   const { status, note } = req.body;
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(404).json({ success: false, message: 'Order not found' });
-  }
-  if (!VALID_STATUSES.includes(status)) {
-    return res.status(400).json({ success: false, message: 'Invalid status' });
-  }
 
   const query = { _id: req.params.id };
   if (req.user.role === 'seller') query['items.seller'] = req.user.id;
@@ -227,11 +220,7 @@ router.put('/:id/status', protect, authorize('seller', 'admin'), async (req, res
 // @route   PUT /api/orders/:id/cancel
 // @desc    Cancel order (customer)
 // @access  Customer
-router.put('/:id/cancel', protect, authorize('customer'), async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(404).json({ success: false, message: 'Order not found' });
-  }
-
+router.put('/:id/cancel', protect, authorize('customer'), orderIdParamValidator, async (req, res) => {
   const order = await Order.findOne({ _id: req.params.id, user: req.user.id }).lean();
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
   if (['delivered', 'cancelled', 'out_for_delivery'].includes(order.status)) {

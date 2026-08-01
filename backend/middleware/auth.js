@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { safeUserProjection } = require('../utils/query');
+const { logSecurityEvent } = require('../utils/securityLogger');
 
 // Verify JWT token
 const protect = async (req, res, next) => {
@@ -23,6 +24,15 @@ const protect = async (req, res, next) => {
     req.user = { ...user, id: user._id.toString() };
     next();
   } catch (error) {
+    // jwt.verify throws TokenExpiredError / JsonWebTokenError / NotBeforeError.
+    // We intentionally return the same generic message for all of them to
+    // avoid leaking implementation details, while logging the specific
+    // reason server-side for auditing.
+    logSecurityEvent('authorization_failed', {
+      reason: error.name || 'invalid_token',
+      path: req.originalUrl,
+      ip: req.ip,
+    });
     return res.status(401).json({ success: false, message: 'Token invalid or expired' });
   }
 };
@@ -31,9 +41,14 @@ const protect = async (req, res, next) => {
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
+      logSecurityEvent('authorization_failed', {
+        reason: 'insufficient_role',
+        userId: req.user.id,
+        path: req.originalUrl,
+      });
       return res.status(403).json({
         success: false,
-        message: `Role '${req.user.role}' is not authorized to access this route`,
+        message: 'You are not authorized to access this route',
       });
     }
     next();

@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const router = express.Router();
 const Product = require('../models/Product');
 const { protect, authorize } = require('../middleware/auth');
@@ -11,6 +10,11 @@ const {
   shapeProduct,
   shapeProducts,
 } = require('../utils/query');
+const {
+  createProductValidator,
+  updateProductValidator,
+  productIdParamValidator,
+} = require('../validators/productValidators');
 
 const PRODUCT_CACHE_TTL = 30;
 const TOP_PRODUCT_CACHE_TTL = 60;
@@ -155,11 +159,7 @@ router.get('/seller/my', protect, authorize('seller', 'admin'), async (req, res)
 // @route   GET /api/products/:id
 // @desc    Get single product
 // @access  Public
-router.get('/:id', async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(404).json({ success: false, message: 'Product not found' });
-  }
-
+router.get('/:id', productIdParamValidator, async (req, res) => {
   const product = await Product.findById(req.params.id, productProjection)
     .populate('seller', 'name')
     .lean();
@@ -172,7 +172,7 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/products
 // @desc    Create product
 // @access  Seller/Admin
-router.post('/', protect, authorize('seller', 'admin'), async (req, res) => {
+router.post('/', protect, authorize('seller', 'admin'), createProductValidator, async (req, res) => {
   const { name, description, price, category, image, stock, discount } = req.body;
   const product = await Product.create({
     name,
@@ -197,11 +197,7 @@ router.post('/', protect, authorize('seller', 'admin'), async (req, res) => {
 // @route   PUT /api/products/:id
 // @desc    Update product
 // @access  Seller (own) / Admin
-router.put('/:id', protect, authorize('seller', 'admin'), async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(404).json({ success: false, message: 'Product not found' });
-  }
-
+router.put('/:id', protect, authorize('seller', 'admin'), updateProductValidator, async (req, res) => {
   const product = await Product.findById(req.params.id).select('seller').lean();
   if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
@@ -209,7 +205,18 @@ router.put('/:id', protect, authorize('seller', 'admin'), async (req, res) => {
     return res.status(403).json({ success: false, message: 'Not authorized to edit this product' });
   }
 
-  const updated = await Product.findByIdAndUpdate(req.params.id, req.body, {
+  // Whitelist updatable fields explicitly instead of passing req.body
+  // straight to findByIdAndUpdate. This prevents mass-assignment of fields
+  // the client should never control (e.g. seller, salesCount, rating) —
+  // the frontend never sends those fields today, so this is not a
+  // behavior change for legitimate requests.
+  const UPDATABLE_FIELDS = ['name', 'description', 'price', 'category', 'image', 'stock', 'discount', 'isAvailable'];
+  const updates = {};
+  for (const field of UPDATABLE_FIELDS) {
+    if (req.body[field] !== undefined) updates[field] = req.body[field];
+  }
+
+  const updated = await Product.findByIdAndUpdate(req.params.id, updates, {
     new: true,
     runValidators: true,
   })
@@ -224,11 +231,7 @@ router.put('/:id', protect, authorize('seller', 'admin'), async (req, res) => {
 // @route   DELETE /api/products/:id
 // @desc    Delete product
 // @access  Seller (own) / Admin
-router.delete('/:id', protect, authorize('seller', 'admin'), async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(404).json({ success: false, message: 'Product not found' });
-  }
-
+router.delete('/:id', protect, authorize('seller', 'admin'), productIdParamValidator, async (req, res) => {
   const product = await Product.findById(req.params.id).select('seller').lean();
   if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 

@@ -3,13 +3,33 @@ require('express-async-errors');
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const http = require('http');
 const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 const connectDB = require('./config/db');
 const User = require('./models/User');
-const createRateLimiter = require('./middleware/rateLimiter');
+const { apiLimiter } = require('./middleware/rateLimiter');
+const { mongoInjectionGuard, xssGuard } = require('./middleware/sanitize');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const { logSecurityEvent } = require('./utils/securityLogger');
 const { requestTimer, responseCompression } = require('./middleware/performance');
+
+// ─── Boot-time environment validation ──────────────────────────────────────
+// A weak or missing JWT secret undermines every other security control in
+// the app (auth, authorization, sockets), so we fail fast instead of
+// starting with an insecure configuration.
+const MIN_JWT_SECRET_LENGTH = 32;
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < MIN_JWT_SECRET_LENGTH) {
+  console.error(
+    `❌ JWT_SECRET is missing or too weak. Set a JWT_SECRET of at least ${MIN_JWT_SECRET_LENGTH} characters in your environment.`
+  );
+  process.exit(1);
+}
+if (!process.env.MONGO_URI) {
+  console.error('❌ MONGO_URI is not set.');
+  process.exit(1);
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -19,7 +39,26 @@ app.set('trust proxy', 1);
 // Parse allowed origins (supports comma-separated FRONTEND_URL for multiple domains)
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
-  .map((o) => o.trim());
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+// Shared origin-check used by both the HTTP CORS middleware and Socket.io.
+// Requests with no Origin header (server-to-server, curl, health checks)
+// are allowed through; anything with an Origin header must match the
+// configured allow-list exactly.
+const isOriginAllowed = (origin) => !origin || allowedOrigins.includes(origin);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) return callback(null, true);
+    logSecurityEvent('suspicious_request', { reason: 'cors_origin_rejected', origin });
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
 
 // Socket.io setup
 const io = new Server(server, {
@@ -36,24 +75,46 @@ app.set('io', io);
 connectDB();
 
 app.use(requestTimer);
-app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  next();
-});
+
+// Security headers. CSP is scoped to "no external resources needed by the
+// API itself" — this is a JSON API, not a page renderer, so a restrictive
+// default-src 'none' does not affect the React frontend (which is served
+// separately by Vercel and talks to this API over fetch/XHR, unaffected by
+// this server's CSP header).
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    hsts: process.env.NODE_ENV === 'production' ? undefined : false,
+  })
+);
+
+app.use(cors(corsOptions));
+// Ensure preflight requests are answered with the same CORS rules everywhere.
+app.options('*', cors(corsOptions));
+
 app.use(express.json({ limit: process.env.JSON_LIMIT || '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: process.env.FORM_LIMIT || '1mb' }));
+
+// Sanitize against NoSQL operator injection and strip HTML/script content
+// from all incoming string input before it ever reaches a controller.
+app.use(mongoInjectionGuard);
+app.use(xssGuard);
+
 app.use(responseCompression);
 
-const authLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: Number(process.env.AUTH_RATE_LIMIT || 40),
-  keyPrefix: 'auth',
-});
+// General API rate limit — applied globally, ahead of route-specific limiters.
+app.use('/api', apiLimiter);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth', authLimiter, require('./routes/auth'));
+// Auth sub-routes get their own stricter, endpoint-specific limiters
+// (see routes/auth.js) in addition to the global /api limiter above.
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/cart', require('./routes/cart'));
 app.use('/api/orders', require('./routes/orders'));
@@ -97,20 +158,13 @@ io.on('connection', (socket) => {
   });
 });
 
-// ─── Global Error Handler ──────────────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.message);
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({
-    success: false,
-    message: err.message || 'Internal Server Error',
-  });
-});
-
 // ─── 404 handler ──────────────────────────────────────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
-});
+app.use(notFoundHandler);
+
+// ─── Global Error Handler ──────────────────────────────────────────────────────
+// Must be registered last. Never leaks stack traces, DB errors, or internal
+// details to the client — see middleware/errorHandler.js.
+app.use(errorHandler);
 
 // ─── Start Server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;

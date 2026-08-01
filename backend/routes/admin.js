@@ -12,6 +12,11 @@ const {
   safeUserProjection,
   shapeProducts,
 } = require('../utils/query');
+const {
+  updateUserValidator,
+  userIdParamValidator,
+  createSellerValidator,
+} = require('../validators/adminValidators');
 
 // All routes are admin only
 router.use(protect, authorize('admin'));
@@ -161,7 +166,7 @@ router.get('/users', async (req, res) => {
 // @route   PUT /api/admin/users/:id
 // @desc    Update user (role, active status)
 // @access  Admin
-router.put('/users/:id', async (req, res) => {
+router.put('/users/:id', updateUserValidator, async (req, res) => {
   const { role, isActive } = req.body;
   const user = await User.findByIdAndUpdate(
     req.params.id,
@@ -177,7 +182,7 @@ router.put('/users/:id', async (req, res) => {
 // @route   DELETE /api/admin/users/:id
 // @desc    Delete user
 // @access  Admin
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', userIdParamValidator, async (req, res) => {
   const user = await User.findById(req.params.id).select('role').lean();
   if (!user) return res.status(404).json({ success: false, message: 'User not found' });
   if (user.role === 'admin') return res.status(400).json({ success: false, message: 'Cannot delete admin' });
@@ -189,7 +194,7 @@ router.delete('/users/:id', async (req, res) => {
 // @route   POST /api/admin/sellers
 // @desc    Create a seller account
 // @access  Admin
-router.post('/sellers', async (req, res) => {
+router.post('/sellers', createSellerValidator, async (req, res) => {
   const { name, email, password, phone } = req.body;
   const normalizedEmail = String(email || '').trim().toLowerCase();
   const existing = await User.exists({ email: normalizedEmail });

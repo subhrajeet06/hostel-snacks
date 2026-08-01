@@ -19,7 +19,10 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      // Primary strength enforcement (length + character classes) happens in
+      // validators/common.js (express-validator) before this is ever hit.
+      // This is a defense-in-depth floor at the model layer.
+      minlength: [8, 'Password must be at least 8 characters'],
     },
     role: {
       type: String,

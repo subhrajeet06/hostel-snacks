@@ -5,6 +5,11 @@ const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 const { protect, authorize } = require('../middleware/auth');
 const { discountedPrice } = require('../utils/query');
+const {
+  addToCartValidator,
+  updateCartValidator,
+  removeFromCartValidator,
+} = require('../validators/cartValidators');
 
 const CART_PRODUCT_FIELDS = 'name price image isAvailable stock discount';
 const emptyCart = { items: [], totalAmount: 0, totalItems: 0 };
@@ -87,7 +92,7 @@ router.get('/', protect, authorize('customer'), async (req, res) => {
 // @route   POST /api/cart/add
 // @desc    Add item to cart
 // @access  Customer
-router.post('/add', protect, authorize('customer'), async (req, res) => {
+router.post('/add', protect, authorize('customer'), addToCartValidator, async (req, res) => {
   const { productId } = req.body;
   const quantity = parseQuantity(req.body.quantity);
   if (!mongoose.Types.ObjectId.isValid(productId)) {
@@ -128,7 +133,7 @@ router.post('/add', protect, authorize('customer'), async (req, res) => {
 // @route   PUT /api/cart/update
 // @desc    Update item quantity in cart
 // @access  Customer
-router.put('/update', protect, authorize('customer'), async (req, res) => {
+router.put('/update', protect, authorize('customer'), updateCartValidator, async (req, res) => {
   const { productId } = req.body;
   const quantity = parseQuantity(req.body.quantity, 0);
   if (!mongoose.Types.ObjectId.isValid(productId)) {
@@ -157,7 +162,7 @@ router.put('/update', protect, authorize('customer'), async (req, res) => {
 // @route   DELETE /api/cart/remove/:productId
 // @desc    Remove item from cart
 // @access  Customer
-router.delete('/remove/:productId', protect, authorize('customer'), async (req, res) => {
+router.delete('/remove/:productId', protect, authorize('customer'), removeFromCartValidator, async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.productId)) {
     return res.status(400).json({ success: false, message: 'Invalid product' });
   }
