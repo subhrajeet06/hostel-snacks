@@ -24,14 +24,20 @@ const getTransporter = () => {
     throw new Error('Email is not configured: BREVO_SMTP_USER and BREVO_SMTP_KEY must be set.');
   }
 
+  const smtpPort = Number(process.env.BREVO_SMTP_PORT || 587);
+  const isSecure = process.env.BREVO_SMTP_SECURE
+    ? process.env.BREVO_SMTP_SECURE === 'true'
+    : smtpPort === 465;
+
   transporter = nodemailer.createTransport({
     host: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
-    port: Number(process.env.BREVO_SMTP_PORT || 587),
-    secure: false, // Brevo uses STARTTLS on port 587, not implicit TLS
+    port: smtpPort,
+    secure: isSecure,
     auth: {
       user: process.env.BREVO_SMTP_USER,
       pass: process.env.BREVO_SMTP_KEY,
     },
+    connectionTimeout: 5000, // Fail fast (5 seconds) instead of hanging if blocked
   });
 
   return transporter;
