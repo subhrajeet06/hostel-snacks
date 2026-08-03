@@ -1,60 +1,85 @@
-const nodemailer = require('nodemailer');
+const https = require('https');
 
 /**
- * Sends transactional email via Brevo's free SMTP relay.
+ * Sends transactional email via Brevo's HTTP API (v3).
  *
- * Brevo's free tier (300 emails/day, no credit card, no domain
- * verification required to get started) is used here instead of a paid
- * provider. Required env vars:
- *   BREVO_SMTP_USER  - your Brevo account login email
- *   BREVO_SMTP_KEY   - the SMTP key from Brevo (Settings > SMTP & API),
- *                       NOT your account password
- *   FROM_EMAIL       - the "from" address shown to recipients
- *   FROM_NAME        - the "from" display name shown to recipients
+ * This bypasses outbound port blocks (25, 465, 587) on cloud platforms
+ * like Render by communicating over standard HTTPS (port 443).
  *
- * Lazily creates the transporter on first use so a missing/invalid SMTP
- * config fails when an email is actually sent, not at server boot.
+ * Required env vars:
+ *   BREVO_SMTP_KEY - your Brevo API key (same as SMTP key, starts with xsmtpsib-)
+ *   FROM_EMAIL     - the "from" email address
+ *   FROM_NAME      - the "from" display name
  */
-let transporter = null;
-
-const getTransporter = () => {
-  if (transporter) return transporter;
-
-  if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_KEY) {
-    throw new Error('Email is not configured: BREVO_SMTP_USER and BREVO_SMTP_KEY must be set.');
-  }
-
-  const smtpPort = Number(process.env.BREVO_SMTP_PORT || 587);
-  const isSecure = process.env.BREVO_SMTP_SECURE
-    ? process.env.BREVO_SMTP_SECURE === 'true'
-    : smtpPort === 465;
-
-  transporter = nodemailer.createTransport({
-    host: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
-    port: smtpPort,
-    secure: isSecure,
-    auth: {
-      user: process.env.BREVO_SMTP_USER,
-      pass: process.env.BREVO_SMTP_KEY,
-    },
-    connectionTimeout: 5000, // Fail fast (5 seconds) instead of hanging if blocked
-  });
-
-  return transporter;
-};
-
 const sendEmail = async (options) => {
-  const info = await getTransporter().sendMail({
-    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
-    to: options.email,
-    subject: options.subject,
-    text: options.message,
-    html: options.html,
-  });
+  return new Promise((resolve, reject) => {
+    const apiKey = process.env.BREVO_API_KEY || process.env.BREVO_SMTP_KEY;
+    if (!apiKey) {
+      return reject(new Error('Email is not configured: BREVO_API_KEY or BREVO_SMTP_KEY must be set.'));
+    }
 
-  // Never log recipient email content or credentials — only the
-  // provider's message id, useful for support/debugging.
-  console.log('Message sent: %s', info?.messageId);
+    const postData = JSON.stringify({
+      sender: {
+        name: process.env.FROM_NAME || 'HostelBite',
+        email: process.env.FROM_EMAIL || 'aslofiworld06@gmail.com'
+      },
+      to: [
+        {
+          email: options.email
+        }
+      ],
+      subject: options.subject,
+      htmlContent: options.html,
+      textContent: options.message
+    });
+
+    const reqOptions = {
+      hostname: 'api.brevo.com',
+      port: 443,
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'api-key': apiKey,
+        'content-length': Buffer.byteLength(postData)
+      }
+    };
+
+    const req = https.request(reqOptions, (res) => {
+      let body = '';
+      res.on('data', (chunk) => {
+        body += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            const parsed = JSON.parse(body);
+            console.log('Message sent via Brevo HTTP API: %s', parsed.messageId);
+            resolve(parsed);
+          } catch (e) {
+            resolve({ messageId: 'unknown' });
+          }
+        } else {
+          reject(new Error(`Brevo HTTP API returned status code ${res.statusCode}: ${body}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    // Set connection/request timeout to 5 seconds
+    req.setTimeout(5000, () => {
+      req.destroy();
+      reject(new Error('Connection timeout trying to reach Brevo HTTP API'));
+    });
+
+    req.write(postData);
+    req.end();
+  });
 };
 
 module.exports = sendEmail;
