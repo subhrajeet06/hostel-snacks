@@ -7,6 +7,7 @@ const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const VerifyEmailPage = lazy(() => import('./pages/auth/VerifyEmailPage'));
 
 const CustomerLayout = lazy(() => import('./pages/customer/CustomerLayout'));
 const HomePage = lazy(() => import('./pages/customer/HomePage'));
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
         <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
         <Route path="/reset-password/:token" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
+        <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
 
         <Route path="/" element={<CustomerRoute><CustomerLayout /></CustomerRoute>}>
           <Route index element={<HomePage />} />

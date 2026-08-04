@@ -8,7 +8,6 @@ import toast from 'react-hot-toast';
 
 const UPI_ID = 'hostelbite@upi'; // change to real UPI ID
 const QR_CODE_URL = '/qr-code.png'; // local QR code image in public folder
-const COUPONS = { HOSTEL10: 0.10, FIRST20: 0.20 };
 
 export default function CheckoutPage() {
   const { cart, resetCart } = useCart();
@@ -23,7 +22,8 @@ export default function CheckoutPage() {
     notes: '',
     couponCode: '',
   });
-  const [couponApplied, setCouponApplied] = useState(null);
+  const [couponApplied, setCouponApplied] = useState(null); // { code, discountPercent }
+  const [couponLoading, setCouponLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showQR, setShowQR] = useState(false);
 
@@ -37,16 +37,26 @@ export default function CheckoutPage() {
     );
   }
 
-  const discount = couponApplied ? cart.totalAmount * COUPONS[couponApplied] : 0;
+  const discount = couponApplied ? cart.totalAmount * (couponApplied.discountPercent / 100) : 0;
   const finalAmount = cart.totalAmount - discount;
 
-  const applyCoupon = () => {
-    const code = form.couponCode.toUpperCase().trim();
-    if (COUPONS[code]) {
-      setCouponApplied(code);
-      toast.success(`Coupon ${code} applied! 🎉`);
-    } else {
-      toast.error('Invalid coupon code');
+  const applyCoupon = async () => {
+    const code = form.couponCode.trim();
+    if (!code) return toast.error('Please enter a coupon code');
+
+    setCouponLoading(true);
+    try {
+      const res = await api.post('/orders/validate-coupon', {
+        couponCode: code,
+        totalAmount: cart.totalAmount,
+      });
+      setCouponApplied({ code: code.toUpperCase(), discountPercent: res.data.discountPercent });
+      toast.success(res.data.message || `Coupon applied! 🎉`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid coupon code');
+      setCouponApplied(null);
+    } finally {
+      setCouponLoading(false);
     }
   };
 
@@ -65,7 +75,7 @@ export default function CheckoutPage() {
         paymentMethod: form.paymentMethod,
         upiTransactionId: form.upiTransactionId,
         notes: form.notes,
-        couponCode: couponApplied || '',
+        couponCode: couponApplied?.code || '',
       });
       toast.success('Order placed! 🎉');
       resetCart();
@@ -168,12 +178,14 @@ export default function CheckoutPage() {
         <div className="card p-5">
           <h2 className="font-semibold text-gray-900 dark:text-white mb-3">🎟️ Coupon Code</h2>
           <div className="flex gap-2">
-            <input className="input flex-1" placeholder="Enter code (HOSTEL10, FIRST20)" value={form.couponCode}
+            <input className="input flex-1" placeholder="Enter coupon code" value={form.couponCode}
               onChange={(e) => { setForm({ ...form, couponCode: e.target.value }); setCouponApplied(null); }} />
-            <button onClick={applyCoupon} className="btn-secondary px-4 flex-shrink-0">Apply</button>
+            <button onClick={applyCoupon} disabled={couponLoading} className="btn-secondary px-4 flex-shrink-0">
+              {couponLoading ? '...' : 'Apply'}
+            </button>
           </div>
           {couponApplied && (
-            <p className="text-sm text-green-600 font-medium mt-2">✅ {couponApplied} applied — {COUPONS[couponApplied] * 100}% off!</p>
+            <p className="text-sm text-green-600 font-medium mt-2">✅ {couponApplied.code} applied — {couponApplied.discountPercent}% off!</p>
           )}
         </div>
 
@@ -193,7 +205,7 @@ export default function CheckoutPage() {
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-green-600">
-                <span>Discount ({couponApplied})</span><span>−{formatCurrency(discount)}</span>
+                <span>Discount ({couponApplied.code})</span><span>−{formatCurrency(discount)}</span>
               </div>
             )}
             <div className="flex justify-between text-gray-500 dark:text-gray-400">

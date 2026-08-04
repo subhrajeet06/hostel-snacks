@@ -1,17 +1,39 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function RegisterPage() {
   const { register, loading } = useAuth();
-  const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', roomNumber: '' });
+  const [registered, setRegistered] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const res = await register(form);
-    if (res.success) navigate('/');
+    if (res.success) setRegistered(true);
   };
+
+  if (registered) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="card p-8 shadow-xl text-center">
+            <div className="text-5xl mb-4">📧</div>
+            <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">Check your email!</h2>
+            <p className="text-gray-600 mb-6">
+              We've sent a verification link to <strong>{form.email}</strong>. Please click the link to activate your account.
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              The link will expire in 24 hours. Check your spam folder if you don't see it.
+            </p>
+            <Link to="/login" className="btn-primary inline-block px-6">
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex items-center justify-center p-4">
@@ -38,8 +60,8 @@ export default function RegisterPage() {
             </div>
             <div>
               <label className="label">Password</label>
-              <input className="input" type="password" placeholder="Min 6 characters" value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
+              <input className="input" type="password" placeholder="Min 8 chars, uppercase, number, special" value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={8} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

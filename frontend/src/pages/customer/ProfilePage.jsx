@@ -25,10 +25,14 @@ export default function ProfilePage() {
   const changePassword = async (e) => {
     e.preventDefault();
     if (pwdForm.newPassword !== pwdForm.confirm) return toast.error('Passwords do not match');
-    if (pwdForm.newPassword.length < 6) return toast.error('Password must be at least 6 characters');
+    if (pwdForm.newPassword.length < 8) return toast.error('Password must be at least 8 characters');
     setChangingPwd(true);
     try {
-      await api.put('/auth/change-password', { currentPassword: pwdForm.currentPassword, newPassword: pwdForm.newPassword });
+      const res = await api.put('/auth/change-password', { currentPassword: pwdForm.currentPassword, newPassword: pwdForm.newPassword });
+      // The backend issues a fresh token (old one is now invalid due to tokenVersion bump).
+      if (res.data.token) {
+        localStorage.setItem('token', res.data.token);
+      }
       toast.success('Password changed!');
       setPwdForm({ currentPassword: '', newPassword: '', confirm: '' });
     } catch (err) {

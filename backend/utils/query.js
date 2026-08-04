@@ -42,7 +42,11 @@ const safeUserProjection = {
   phone: 1,
   roomNumber: 1,
   isActive: 1,
+  isEmailVerified: 1,
   avatar: 1,
+  // Used internally by the auth middleware to validate JWT session — never
+  // sent to the client (stripped in middleware/auth.js before attaching to req.user).
+  tokenVersion: 1,
   createdAt: 1,
   updatedAt: 1,
 };

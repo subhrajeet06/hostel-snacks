@@ -41,12 +41,23 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
     avatar: {
       type: String,
       default: '',
     },
+    // Incremented on every password change/reset to invalidate all existing JWTs.
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    emailVerificationToken: String,
+    emailVerificationExpire: Date,
   },
   { timestamps: true }
 );
@@ -77,8 +88,17 @@ userSchema.methods.getResetPasswordToken = function () {
   return resetToken;
 };
 
+// Generate and hash email verification token
+userSchema.methods.getEmailVerificationToken = function () {
+  const verificationToken = crypto.randomBytes(20).toString('hex');
+  this.emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+  this.emailVerificationExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+  return verificationToken;
+};
+
 userSchema.index({ role: 1, isActive: 1, createdAt: -1 });
 userSchema.index({ resetPasswordToken: 1, resetPasswordExpire: 1 });
+userSchema.index({ emailVerificationToken: 1, emailVerificationExpire: 1 });
 userSchema.index(
   { name: 'text', email: 'text' },
   { weights: { name: 8, email: 4 }, name: 'UserTextSearch' }

@@ -54,8 +54,8 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const res = await api.post('/auth/register', data);
-      saveSession(res.data.token, res.data.user);
-      toast.success('Welcome to HostelBite! 🎉');
+      // Registration no longer auto-logs in — user must verify email first.
+      toast.success(res.data.message || 'Account created! Check your email to verify.');
       return { success: true };
     } catch (err) {
       const msg = err.response?.data?.message || 'Registration failed';
@@ -64,7 +64,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [saveSession]);
+  }, []);
 
   const login = useCallback(async (email, password) => {
     setLoading(true);
@@ -75,8 +75,14 @@ export const AuthProvider = ({ children }) => {
       return { success: true, role: res.data.user.role };
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed';
-      toast.error(msg);
-      return { success: false };
+      const requiresVerification = err.response?.data?.requiresVerification || false;
+
+      // Don't show generic toast for verification-required — the LoginPage
+      // handles this with a dedicated UI banner.
+      if (!requiresVerification) {
+        toast.error(msg);
+      }
+      return { success: false, requiresVerification };
     } finally {
       setLoading(false);
     }
@@ -120,6 +126,18 @@ export const AuthProvider = ({ children }) => {
     }
   }, [saveSession]);
 
+  const resendVerification = useCallback(async (email) => {
+    try {
+      const res = await api.post('/auth/resend-verification', { email });
+      toast.success(res.data.message || 'Verification email sent!');
+      return { success: true };
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to send verification email';
+      toast.error(msg);
+      return { success: false, message: msg };
+    }
+  }, []);
+
   const updateUser = useCallback((updates) => {
     const updated = { ...user, ...updates };
     localStorage.setItem('user', JSON.stringify(updated));
@@ -135,7 +153,8 @@ export const AuthProvider = ({ children }) => {
     updateUser,
     forgotPassword,
     resetPassword,
-  }), [forgotPassword, loading, login, logout, register, resetPassword, updateUser, user]);
+    resendVerification,
+  }), [forgotPassword, loading, login, logout, register, resetPassword, resendVerification, updateUser, user]);
 
   return (
     <AuthContext.Provider value={value}>

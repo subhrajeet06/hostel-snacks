@@ -78,6 +78,12 @@ const resetPasswordLimiter = createRateLimiter({
   keyPrefix: 'reset-password',
 });
 
+const resendVerificationLimiter = createRateLimiter({
+  windowMs: Number(process.env.RESEND_VERIFICATION_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
+  max: Number(process.env.RESEND_VERIFICATION_RATE_LIMIT_MAX || 5),
+  keyPrefix: 'resend-verification',
+});
+
 // Kept as the default export for backward compatibility with any code that
 // does `const createRateLimiter = require('./middleware/rateLimiter')`.
 module.exports = createRateLimiter;
@@ -87,3 +93,4 @@ module.exports.loginLimiter = loginLimiter;
 module.exports.registerLimiter = registerLimiter;
 module.exports.forgotPasswordLimiter = forgotPasswordLimiter;
 module.exports.resetPasswordLimiter = resetPasswordLimiter;
+module.exports.resendVerificationLimiter = resendVerificationLimiter;

@@ -168,6 +168,17 @@ router.get('/users', async (req, res) => {
 // @access  Admin
 router.put('/users/:id', updateUserValidator, async (req, res) => {
   const { role, isActive } = req.body;
+
+  // Prevent admin from removing their own admin privileges or deactivating themselves.
+  if (req.params.id === req.user.id) {
+    if (role && role !== 'admin') {
+      return res.status(400).json({ success: false, message: 'You cannot remove your own admin role' });
+    }
+    if (isActive === false) {
+      return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
+    }
+  }
+
   const user = await User.findByIdAndUpdate(
     req.params.id,
     { ...(role && { role }), ...(isActive !== undefined && { isActive }) },

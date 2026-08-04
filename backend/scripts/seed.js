@@ -2,6 +2,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Product = require('../models/Product');
+const Coupon = require('../models/Coupon');
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -12,6 +13,7 @@ const seed = async () => {
   // Clear existing data
   await User.deleteMany({});
   await Product.deleteMany({});
+  await Coupon.deleteMany({});
 
   // Create Admin
   const admin = await User.create({
@@ -19,6 +21,7 @@ const seed = async () => {
     email: process.env.ADMIN_EMAIL || 'admin@hostel.com',
     password: process.env.ADMIN_PASSWORD || 'Admin@123',
     role: 'admin',
+    isEmailVerified: true,
   });
   console.log('✅ Admin created:', admin.email);
 
@@ -29,6 +32,7 @@ const seed = async () => {
     password: 'Seller@123',
     role: 'seller',
     phone: '9876543210',
+    isEmailVerified: true,
   });
   console.log('✅ Seller created:', seller.email);
 
@@ -40,6 +44,7 @@ const seed = async () => {
     role: 'customer',
     phone: '9876543211',
     roomNumber: 'A-201',
+    isEmailVerified: true,
   });
   console.log('✅ Customer created: student@hostel.com');
 
@@ -64,11 +69,35 @@ const seed = async () => {
   }
   console.log('✅ Products created:', products.length);
 
+  // Seed coupons
+  const coupons = [
+    {
+      code: 'HOSTEL10',
+      discountPercent: 10,
+      maxUses: null,        // unlimited global uses
+      perUserLimit: 1,       // each user can use it once
+      isActive: true,
+    },
+    {
+      code: 'FIRST20',
+      discountPercent: 20,
+      maxUses: null,
+      perUserLimit: 1,
+      isActive: true,
+    },
+  ];
+
+  for (const c of coupons) {
+    await Coupon.create(c);
+  }
+  console.log('✅ Coupons created:', coupons.length);
+
   console.log('\n🎉 Database seeded successfully!\n');
   console.log('Login credentials:');
   console.log(`  Admin:    ${process.env.ADMIN_EMAIL || 'admin@hostel.com'}   / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
   console.log('  Seller:   seller@hostel.com  / Seller@123');
   console.log('  Customer: student@hostel.com / Student@123');
+  console.log('\nCoupons: HOSTEL10 (10% off), FIRST20 (20% off)');
 
   process.exit(0);
 };

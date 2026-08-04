@@ -71,8 +71,8 @@ const sendEmail = async (options) => {
       reject(err);
     });
 
-    // Set connection/request timeout to 5 seconds
-    req.setTimeout(5000, () => {
+    // Set connection/request timeout to 10 seconds
+    req.setTimeout(10000, () => {
       req.destroy();
       reject(new Error('Connection timeout trying to reach Brevo HTTP API'));
     });

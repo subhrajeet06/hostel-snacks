@@ -3,21 +3,30 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage() {
-  const { login, loading } = useAuth();
+  const { login, resendVerification, loading } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
+  const [unverified, setUnverified] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setUnverified(false);
     const res = await login(form.email, form.password);
     if (res.success) {
       if (res.role === 'admin')  navigate('/admin');
       else if (res.role === 'seller') navigate('/seller');
       else navigate('/');
+    } else if (res.requiresVerification) {
+      setUnverified(true);
     }
   };
 
-  // const fillDemo = (email, password) => setForm({ email, password });
+  const handleResend = async () => {
+    setResending(true);
+    await resendVerification(form.email);
+    setResending(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex items-center justify-center p-4">
@@ -32,6 +41,22 @@ export default function LoginPage() {
         <div className="card p-8 shadow-xl">
           <h2 className="font-display text-xl font-bold mb-6 text-gray-900">Sign In</h2>
 
+          {unverified && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-sm text-amber-800 font-medium mb-2">
+                📧 Your email is not verified yet. Please check your inbox for the verification link.
+              </p>
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="text-sm text-orange-600 font-semibold hover:underline"
+              >
+                {resending ? 'Sending...' : 'Resend verification email'}
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="label">Email</label>
@@ -40,7 +65,7 @@ export default function LoginPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => { setForm({ ...form, email: e.target.value }); setUnverified(false); }}
                 required
               />
             </div>
@@ -69,29 +94,6 @@ export default function LoginPage() {
             Don't have an account?{' '}
             <Link to="/register" className="text-orange-500 font-semibold hover:underline">Register</Link>
           </p>
-
-          {/* Demo credentials - COMMENTED OUT
-          <div className="mt-6 p-4 bg-orange-50 rounded-xl border border-orange-100">
-            <p className="text-xs font-semibold text-orange-700 mb-2">🧪 Demo Credentials</p>
-            <div className="space-y-1.5">
-              {[
-                { label: 'Customer', email: 'student@hostel.com', pwd: 'Student@123' },
-                { label: 'Seller',   email: 'seller@hostel.com',  pwd: 'Seller@123'  },
-                { label: 'Admin',    email: 'admin@hostel.com',   pwd: 'Admin@123'   },
-              ].map((d) => (
-                <button
-                  key={d.label}
-                  type="button"
-                  onClick={() => fillDemo(d.email, d.pwd)}
-                  className="w-full text-left text-xs bg-white rounded-lg px-3 py-2 border border-orange-100 hover:border-orange-300 hover:bg-orange-50 transition-all"
-                >
-                  <span className="font-semibold text-orange-600">{d.label}</span>
-                  <span className="text-gray-500 ml-2">{d.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          */}
         </div>
       </div>
     </div>

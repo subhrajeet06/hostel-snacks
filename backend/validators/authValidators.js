@@ -52,6 +52,11 @@ const resetPasswordValidator = [
   handleValidation,
 ];
 
+const resendVerificationValidator = [
+  emailField('email'),
+  handleValidation,
+];
+
 module.exports = {
   registerValidator,
   loginValidator,
@@ -59,4 +64,5 @@ module.exports = {
   changePasswordValidator,
   forgotPasswordValidator,
   resetPasswordValidator,
+  resendVerificationValidator,
 };

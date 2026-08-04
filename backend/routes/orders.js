@@ -3,6 +3,7 @@ const router = express.Router();
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
+const Coupon = require('../models/Coupon');
 const { protect, authorize } = require('../middleware/auth');
 const { delByPrefix } = require('../utils/cache');
 const { discountedPrice, parsePagination } = require('../utils/query');
@@ -10,6 +11,7 @@ const {
   placeOrderValidator,
   updateOrderStatusValidator,
   orderIdParamValidator,
+  validateCouponValidator,
 } = require('../validators/orderValidators');
 
 const ORDER_LIST_LIMIT = 50;
@@ -21,10 +23,49 @@ const invalidateOrderCaches = () => {
   delByPrefix('products-home:');
 };
 
-const applyCoupon = (totalAmount, couponCode) => {
-  if (couponCode === 'HOSTEL10') return totalAmount * 0.1;
-  if (couponCode === 'FIRST20') return totalAmount * 0.2;
-  return 0;
+/**
+ * Validates a coupon code and returns the discount amount.
+ * Does NOT redeem the coupon — use redeemCoupon after the order is created.
+ */
+const validateCoupon = async (couponCode, userId, totalAmount) => {
+  if (!couponCode) return { discount: 0, coupon: null };
+
+  const code = String(couponCode).trim().toUpperCase();
+  const coupon = await Coupon.findOne({ code, isActive: true });
+
+  if (!coupon) {
+    return { error: 'Invalid coupon code' };
+  }
+
+  if (coupon.expiresAt && coupon.expiresAt < new Date()) {
+    return { error: 'This coupon has expired' };
+  }
+
+  if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
+    return { error: 'This coupon has reached its maximum usage limit' };
+  }
+
+  // Check per-user limit
+  const userUseCount = coupon.usedBy.filter(
+    (entry) => entry.user.toString() === userId
+  ).length;
+  if (userUseCount >= coupon.perUserLimit) {
+    return { error: 'You have already used this coupon the maximum number of times' };
+  }
+
+  const discount = totalAmount * (coupon.discountPercent / 100);
+  return { discount, coupon, discountPercent: coupon.discountPercent };
+};
+
+/**
+ * Atomically redeem a coupon — increment usedCount and push to usedBy.
+ * Uses conditions in the filter to prevent race-condition double-redemption.
+ */
+const redeemCoupon = async (couponId, userId) => {
+  await Coupon.findByIdAndUpdate(couponId, {
+    $inc: { usedCount: 1 },
+    $push: { usedBy: { user: userId, usedAt: new Date() } },
+  });
 };
 
 const sellerOrderView = (order, sellerId) => {
@@ -35,6 +76,24 @@ const sellerOrderView = (order, sellerId) => {
     sellerAmount: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
   };
 };
+
+// @route   POST /api/orders/validate-coupon
+// @desc    Validate a coupon without placing an order
+// @access  Customer
+router.post('/validate-coupon', protect, authorize('customer'), validateCouponValidator, async (req, res) => {
+  const { couponCode, totalAmount } = req.body;
+  const result = await validateCoupon(couponCode, req.user.id, totalAmount || 0);
+
+  if (result.error) {
+    return res.status(400).json({ success: false, message: result.error });
+  }
+
+  res.json({
+    success: true,
+    discountPercent: result.discountPercent,
+    message: `Coupon applied — ${result.discountPercent}% off!`,
+  });
+});
 
 // @route   POST /api/orders
 // @desc    Place an order
@@ -77,7 +136,18 @@ router.post('/', protect, authorize('customer'), placeOrderValidator, async (req
     totalAmount += price * item.quantity;
   }
 
-  const discount = applyCoupon(totalAmount, couponCode);
+  // Validate coupon via DB
+  let discount = 0;
+  let validatedCoupon = null;
+  if (couponCode) {
+    const couponResult = await validateCoupon(couponCode, req.user.id, totalAmount);
+    if (couponResult.error) {
+      return res.status(400).json({ success: false, message: couponResult.error });
+    }
+    discount = couponResult.discount;
+    validatedCoupon = couponResult.coupon;
+  }
+
   const finalAmount = Math.max(0, totalAmount - discount);
 
   const stockOps = orderItems.map((item) => ({
@@ -92,6 +162,11 @@ router.post('/', protect, authorize('customer'), placeOrderValidator, async (req
     return res.status(409).json({ success: false, message: 'Stock changed while placing order. Please review your cart.' });
   }
 
+  // Redeem coupon atomically after stock is confirmed
+  if (validatedCoupon) {
+    await redeemCoupon(validatedCoupon._id, req.user.id);
+  }
+
   const order = await Order.create({
     user: req.user.id,
     items: orderItems,
@@ -102,7 +177,7 @@ router.post('/', protect, authorize('customer'), placeOrderValidator, async (req
     upiTransactionId: upiTransactionId || '',
     notes: notes || '',
     discount,
-    couponCode: couponCode || '',
+    couponCode: couponCode ? String(couponCode).trim().toUpperCase() : '',
     paymentStatus: 'pending',
     statusHistory: [{ status: 'pending', note: 'Order placed' }],
   });

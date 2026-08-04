@@ -21,7 +21,21 @@ const protect = async (req, res, next) => {
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
-    req.user = { ...user, id: user._id.toString() };
+
+    // Reject tokens issued before the most recent password change/reset.
+    if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+      logSecurityEvent('authorization_failed', {
+        reason: 'stale_token_version',
+        userId: user._id.toString(),
+        path: req.originalUrl,
+        ip: req.ip,
+      });
+      return res.status(401).json({ success: false, message: 'Token invalid or expired' });
+    }
+
+    // Strip tokenVersion so it's never leaked to API consumers.
+    const { tokenVersion, ...safeUser } = user;
+    req.user = { ...safeUser, id: user._id.toString() };
     next();
   } catch (error) {
     // jwt.verify throws TokenExpiredError / JsonWebTokenError / NotBeforeError.
