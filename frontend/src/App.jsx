@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useSocket } from './hooks/useSocket';
+import toast from 'react-hot-toast';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
@@ -30,6 +31,10 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
 const AdminProducts = lazy(() => import('./pages/admin/AdminProducts'));
+
+const NotFoundPage = lazy(() => import('./pages/errors/NotFoundPage'));
+const ServerErrorPage = lazy(() => import('./pages/errors/ServerErrorPage'));
+const UnexpectedErrorPage = lazy(() => import('./pages/errors/UnexpectedErrorPage'));
 
 const getDashboardPath = (role) => {
   if (role === 'admin') return '/admin';
@@ -69,6 +74,21 @@ const CustomerRoute = ({ children }) => {
 export default function App() {
   useSocket();
 
+  useEffect(() => {
+    const handleOnline = () => {
+      toast.success("You're back online.", { id: 'network-status' });
+    };
+    const handleOffline = () => {
+      toast.error('You are currently offline.', { id: 'network-status', duration: Infinity });
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
@@ -104,7 +124,9 @@ export default function App() {
           <Route path="products" element={<AdminProducts />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/500" element={<ServerErrorPage />} />
+        <Route path="/error" element={<UnexpectedErrorPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   );

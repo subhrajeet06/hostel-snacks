@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -9,6 +9,14 @@ export default function LoginPage() {
   const [unverified, setUnverified] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const authErr = localStorage.getItem('authError');
+    if (authErr) {
+      setError(authErr);
+      localStorage.removeItem('authError');
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
