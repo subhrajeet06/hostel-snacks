@@ -100,7 +100,9 @@ const discountField = (field = 'discount') =>
 
 const imageUrlField = (field = 'image') =>
   body(field)
-    .optional({ checkFalsy: true })
+    .trim()
+    .notEmpty()
+    .withMessage('Image URL is required')
     .isString()
     .isLength({ max: 2000 })
     .withMessage('Image URL is too long')

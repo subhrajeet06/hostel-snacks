@@ -40,7 +40,7 @@ export default function SellerAddProduct() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.price || !form.stock) return toast.error('Fill all required fields');
+    if (!form.name || !form.price || !form.stock || !form.image) return toast.error('Fill all required fields');
     setLoading(true);
     try {
       const body = {
@@ -48,7 +48,7 @@ export default function SellerAddProduct() {
         price: Number(form.price),
         stock: Number(form.stock),
         discount: Number(form.discount),
-        image: form.image.trim() || DEFAULT_IMAGE,
+        image: form.image.trim(),
         tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       };
       if (id) {
@@ -143,8 +143,8 @@ export default function SellerAddProduct() {
           )}
 
           <div>
-            <label className="label">Product Image URL</label>
-            <input className="input" type="url" placeholder="https://example.com/image.jpg" value={form.image} onChange={set('image')} />
+            <label className="label">Product Image URL *</label>
+            <input className="input" type="url" placeholder="https://example.com/image.jpg" value={form.image} onChange={set('image')} required />
             <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">📷 Where to get image links:</p>
               <ul className="text-xs text-blue-600 dark:text-blue-300 space-y-0.5 list-disc ml-4">
