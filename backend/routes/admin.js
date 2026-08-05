@@ -258,6 +258,11 @@ router.post('/sellers', createSellerValidator, async (req, res) => {
   const existing = await User.exists({ email: normalizedEmail });
   if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
 
+  if (phone) {
+    const existingPhone = await User.exists({ phone });
+    if (existingPhone) return res.status(400).json({ success: false, message: 'Mobile number already in use' });
+  }
+
   const seller = await User.create({ name, email: normalizedEmail, password, phone, role: 'seller' });
   logAudit(req, { action: 'seller_created', resourceType: 'user', resourceId: seller._id.toString() });
   invalidateAdminStats();

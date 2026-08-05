@@ -67,6 +67,13 @@ router.post('/register', registerLimiter, registerValidator, async (req, res) =>
     return res.status(400).json({ success: false, message: 'Email already registered' });
   }
 
+  if (phone) {
+    const existingPhone = await User.exists({ phone });
+    if (existingPhone) {
+      return res.status(400).json({ success: false, message: 'Mobile number already registered' });
+    }
+  }
+
   const user = await User.create({ name, email: normalizedEmail, password, phone, roomNumber, role: 'customer' });
 
   logSecurityEvent('user_registered', { userId: user._id.toString() });
@@ -190,6 +197,14 @@ router.get('/me', protect, async (req, res) => {
 // @access  Private
 router.put('/profile', protect, updateProfileValidator, async (req, res) => {
   const { name, phone, roomNumber } = req.body;
+
+  if (phone) {
+    const existingPhone = await User.exists({ phone, _id: { $ne: req.user.id } });
+    if (existingPhone) {
+      return res.status(400).json({ success: false, message: 'Mobile number already registered' });
+    }
+  }
+
   const user = await User.findByIdAndUpdate(
     req.user.id,
     { name, phone, roomNumber },
