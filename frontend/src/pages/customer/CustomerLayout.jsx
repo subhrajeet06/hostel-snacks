@@ -11,6 +11,7 @@ export default function CustomerLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
     { to: '/', label: 'Home' },
@@ -97,22 +98,106 @@ export default function CustomerLayout() {
               <Link to="/login" className="btn-primary py-2 px-4 text-sm">Sign In</Link>
             )}
 
-            {/* Mobile menu */}
-            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800">
+            {/* Mobile menu button */}
+            <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800">
               ☰
             </button>
           </div>
         </div>
 
-        {/* Mobile nav */}
-        {menuOpen && (
-          <div className="md:hidden border-t border-gray-100 dark:border-gray-800 px-4 py-3 flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <Link key={link.to} to={link.to} onClick={() => setMenuOpen(false)}
-                className="px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
-                {link.label}
-              </Link>
-            ))}
+        {/* Mobile Nav Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-[100] flex justify-end">
+            {/* Overlay */}
+            <div 
+              className="absolute inset-0 bg-black/60 transition-opacity" 
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            
+            {/* Drawer */}
+            <div className="relative w-80 max-w-full bg-[#1a1f26] h-full shadow-2xl flex flex-col transform transition-transform duration-300">
+              {/* Header */}
+              <div className="p-5 flex items-center justify-between border-b border-gray-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🍟</span>
+                  <span className="font-display font-bold text-xl text-white">
+                    Hostel<span className="text-orange-500">Bite</span>
+                  </span>
+                </div>
+                <button 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-gray-400 hover:text-white p-1"
+                >
+                  <span className="text-2xl font-light">×</span>
+                </button>
+              </div>
+
+              {/* Profile Card */}
+              {user && (
+                <div className="p-5">
+                  <div className="bg-gray-800/50 rounded-2xl p-4 flex items-center gap-4 border border-gray-700/50">
+                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                      {user.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-lg leading-tight">My Account</p>
+                      <Link 
+                        to="/profile" 
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-gray-400 text-sm hover:text-orange-400 flex items-center gap-1 mt-0.5"
+                      >
+                        View Profile <span>→</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Links */}
+              <div className="flex-1 overflow-y-auto px-5 py-2 flex flex-col gap-2">
+                <Link 
+                  to="/" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/' ? 'bg-[#2a2f36] border-l-4 border-orange-500 text-white' : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'}`}
+                >
+                  <span className={location.pathname === '/' ? 'text-orange-500' : ''}>🏠</span>
+                  <span className="font-semibold">Home</span>
+                </Link>
+
+                <Link 
+                  to="/products" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/products' ? 'bg-[#2a2f36] border-l-4 border-orange-500 text-white' : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'}`}
+                >
+                  <span className={location.pathname === '/products' ? 'text-orange-500' : ''}>🍔</span>
+                  <span className="font-semibold">Menu</span>
+                </Link>
+
+                {user && (
+                  <Link 
+                    to="/orders" 
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/orders' ? 'bg-[#2a2f36] border-l-4 border-orange-500 text-white' : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'}`}
+                  >
+                    <span className={location.pathname === '/orders' ? 'text-orange-500' : ''}>📦</span>
+                    <span className="font-semibold">My Orders</span>
+                  </Link>
+                )}
+              </div>
+
+              {/* Logout */}
+              {user && (
+                <div className="p-5 border-t border-gray-800">
+                  <button 
+                    onClick={() => { logout(); setMobileMenuOpen(false); navigate('/login'); }}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl text-red-500 hover:bg-red-500/10 transition-all font-semibold"
+                  >
+                    <span>🚪</span>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </nav>
