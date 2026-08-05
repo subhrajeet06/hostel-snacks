@@ -14,7 +14,7 @@ export default function SellerAddProduct() {
   const [fetching, setFetching] = useState(!!id);
   const [form, setForm] = useState({
     name: '', description: '', price: '', category: 'chips',
-    image: '', stock: '', discount: 0, isAvailable: true,
+    image: '', stock: '', discount: 0, isAvailable: true, tags: '',
   });
   const [imageError, setImageError] = useState(false);
 
@@ -23,7 +23,7 @@ export default function SellerAddProduct() {
       api.get(`/products/${id}`).then((res) => {
         const p = res.data.product;
         setForm({ name: p.name, description: p.description || '', price: p.price, category: p.category,
-          image: p.image || '', stock: p.stock, discount: p.discount || 0, isAvailable: p.isAvailable });
+          image: p.image || '', stock: p.stock, discount: p.discount || 0, isAvailable: p.isAvailable, tags: p.tags?.join(', ') || '' });
       }).catch(() => toast.error('Product not found')).finally(() => setFetching(false));
     }
   }, [id]);
@@ -49,6 +49,7 @@ export default function SellerAddProduct() {
         stock: Number(form.stock),
         discount: Number(form.discount),
         image: form.image.trim() || DEFAULT_IMAGE,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       };
       if (id) {
         await api.put(`/products/${id}`, body);
@@ -98,6 +99,12 @@ export default function SellerAddProduct() {
           <div>
             <label className="label">Description</label>
             <textarea className="input resize-none" rows={2} placeholder="Short description..." value={form.description} onChange={set('description')} />
+          </div>
+
+          <div>
+            <label className="label">Tags</label>
+            <input className="input" placeholder="spicy, crispy, sweet" value={form.tags} onChange={set('tags')} />
+            <p className="text-xs text-gray-500 mt-1">Comma-separated tags to help users search (e.g., spicy, snack, party)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

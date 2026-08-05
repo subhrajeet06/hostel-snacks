@@ -32,7 +32,16 @@ const buildProductQuery = ({ category, search, minPrice, maxPrice }) => {
   const searchTerm = cleanSearchTerm(search);
 
   if (category && category !== 'all') query.category = category;
-  if (searchTerm) query.$text = { $search: searchTerm };
+  
+  if (searchTerm) {
+    const regex = new RegExp(searchTerm, 'i');
+    query.$or = [
+      { name: regex },
+      { description: regex },
+      { tags: regex },
+    ];
+  }
+
   if (minPrice || maxPrice) {
     query.price = {};
     const min = Number(minPrice);
@@ -48,7 +57,6 @@ const buildProductSort = (sort, searchTerm) => {
   if (sort === 'price_asc') return { price: 1, _id: 1 };
   if (sort === 'price_desc') return { price: -1, _id: 1 };
   if (sort === 'popular') return { salesCount: -1, _id: 1 };
-  if (searchTerm) return { score: { $meta: 'textScore' }, createdAt: -1 };
   return { createdAt: -1, _id: -1 };
 };
 
@@ -67,7 +75,7 @@ router.get('/', async (req, res) => {
 
   const { value, hit } = await getOrSet(cacheKey, PRODUCT_CACHE_TTL, async () => {
     const { query, searchTerm } = buildProductQuery({ category, search, minPrice, maxPrice });
-    const projection = searchTerm ? { ...productProjection, score: { $meta: 'textScore' } } : productProjection;
+    const projection = productProjection;
     const sortObj = buildProductSort(sort, searchTerm);
 
     const [total, products] = await Promise.all([
@@ -174,13 +182,14 @@ router.get('/:id', productIdParamValidator, async (req, res) => {
 // @desc    Create product
 // @access  Seller/Admin
 router.post('/', protect, authorize('seller', 'admin'), createProductValidator, async (req, res) => {
-  const { name, description, price, category, image, stock, discount } = req.body;
+  const { name, description, price, category, image, stock, discount, tags } = req.body;
   const product = await Product.create({
     name,
     description,
     price,
     category,
     image,
+    tags,
     stock,
     discount,
     seller: req.user.id,
@@ -200,7 +209,7 @@ router.post('/', protect, authorize('seller', 'admin'), createProductValidator, 
 // @desc    Update product
 // @access  Seller (own) / Admin
 router.put('/:id', protect, authorize('seller', 'admin'), updateProductValidator, async (req, res) => {
-  const product = await Product.findById(req.params.id).select('seller name price stock discount isAvailable description category image').lean();
+  const product = await Product.findById(req.params.id).select('seller name price stock discount isAvailable description category image tags').lean();
   if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
   if (req.user.role === 'seller' && product.seller.toString() !== req.user.id) {
@@ -212,7 +221,7 @@ router.put('/:id', protect, authorize('seller', 'admin'), updateProductValidator
   // the client should never control (e.g. seller, salesCount, rating) —
   // the frontend never sends those fields today, so this is not a
   // behavior change for legitimate requests.
-  const UPDATABLE_FIELDS = ['name', 'description', 'price', 'category', 'image', 'stock', 'discount', 'isAvailable'];
+  const UPDATABLE_FIELDS = ['name', 'description', 'price', 'category', 'image', 'stock', 'discount', 'isAvailable', 'tags'];
   const updates = {};
   for (const field of UPDATABLE_FIELDS) {
     if (req.body[field] !== undefined) updates[field] = req.body[field];

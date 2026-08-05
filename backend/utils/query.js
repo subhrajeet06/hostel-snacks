@@ -4,6 +4,7 @@ const parsePositiveInt = (value, fallback, max) => {
   return Math.min(parsed, max);
 };
 
+
 const parsePagination = (query, { defaultLimit = 20, maxLimit = 50 } = {}) => {
   const page = parsePositiveInt(query.page, 1, 100000);
   const limit = parsePositiveInt(query.limit, defaultLimit, maxLimit);
@@ -31,6 +32,7 @@ const productProjection = {
   salesCount: 1,
   rating: 1,
   discount: 1,
+  tags: 1,
   createdAt: 1,
   updatedAt: 1,
 };

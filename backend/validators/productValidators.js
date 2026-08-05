@@ -8,6 +8,7 @@ const {
   discountField,
   imageUrlField,
   descriptionField,
+  tagsField,
 } = require('./common');
 
 const nameField = body('name')
@@ -32,6 +33,7 @@ const createProductValidator = [
   imageUrlField('image'),
   stockField('stock'),
   discountField('discount'),
+  tagsField('tags'),
   handleValidation,
 ];
 
@@ -48,6 +50,7 @@ const updateProductValidator = [
   imageUrlField('image'),
   body('stock').optional().isInt({ min: 0, max: 100000 }).withMessage('Stock must be a non-negative whole number'),
   discountField('discount'),
+  tagsField('tags'),
   body('isAvailable').optional().isBoolean().withMessage('isAvailable must be a boolean'),
   handleValidation,
 ];

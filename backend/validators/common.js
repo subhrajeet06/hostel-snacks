@@ -117,6 +117,21 @@ const descriptionField = (field = 'description') =>
     .isLength({ max: 2000 })
     .withMessage('Description is too long');
 
+const tagsField = (field = 'tags') =>
+  body(field)
+    .optional()
+    .isArray()
+    .withMessage('Tags must be an array of strings')
+    .custom((value) => {
+      if (value.length > 20) throw new Error('Maximum 20 tags allowed');
+      for (const tag of value) {
+        if (typeof tag !== 'string' || tag.length > 50) {
+          throw new Error('Each tag must be a string under 50 characters');
+        }
+      }
+      return true;
+    });
+
 const paginationQuery = () => [
   query('page').optional().isInt({ min: 1, max: 100000 }).withMessage('Invalid page'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Invalid limit'),
@@ -141,5 +156,6 @@ module.exports = {
   discountField,
   imageUrlField,
   descriptionField,
+  tagsField,
   paginationQuery,
 };
