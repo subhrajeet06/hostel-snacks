@@ -115,18 +115,18 @@ export default function CustomerLayout() {
             />
             
             {/* Drawer */}
-            <div className="relative w-80 max-w-full bg-[#1a1f26] h-full shadow-2xl flex flex-col transform transition-transform duration-300">
+            <div className="relative w-80 max-w-full bg-white dark:bg-[#1a1f26] h-full shadow-2xl flex flex-col transform transition-transform duration-300">
               {/* Header */}
-              <div className="p-5 flex items-center justify-between border-b border-gray-800">
+              <div className="p-5 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🍟</span>
-                  <span className="font-display font-bold text-xl text-white">
+                  <span className="font-display font-bold text-xl text-gray-900 dark:text-white">
                     Hostel<span className="text-orange-500">Bite</span>
                   </span>
                 </div>
                 <button 
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-gray-400 hover:text-white p-1"
+                  className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-1"
                 >
                   <span className="text-2xl font-light">×</span>
                 </button>
@@ -135,16 +135,16 @@ export default function CustomerLayout() {
               {/* Profile Card */}
               {user && (
                 <div className="p-5">
-                  <div className="bg-gray-800/50 rounded-2xl p-4 flex items-center gap-4 border border-gray-700/50">
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 flex items-center gap-4 border border-gray-200 dark:border-gray-700/50">
                     <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white text-xl font-bold">
                       {user.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-white font-bold text-lg leading-tight">My Account</p>
+                      <p className="text-gray-900 dark:text-white font-bold text-lg leading-tight">My Account</p>
                       <Link 
                         to="/profile" 
                         onClick={() => setMobileMenuOpen(false)}
-                        className="text-gray-400 text-sm hover:text-orange-400 flex items-center gap-1 mt-0.5"
+                        className="text-gray-500 dark:text-gray-400 text-sm hover:text-orange-500 dark:hover:text-orange-400 flex items-center gap-1 mt-0.5"
                       >
                         View Profile <span>→</span>
                       </Link>
@@ -158,7 +158,7 @@ export default function CustomerLayout() {
                 <Link 
                   to="/" 
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/' ? 'bg-[#2a2f36] border-l-4 border-orange-500 text-white' : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'}`}
+                  className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/' ? 'bg-orange-50 dark:bg-[#2a2f36] border-l-4 border-orange-500 text-orange-600 dark:text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'}`}
                 >
                   <span className={location.pathname === '/' ? 'text-orange-500' : ''}>🏠</span>
                   <span className="font-semibold">Home</span>
@@ -167,7 +167,7 @@ export default function CustomerLayout() {
                 <Link 
                   to="/products" 
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/products' ? 'bg-[#2a2f36] border-l-4 border-orange-500 text-white' : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'}`}
+                  className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/products' ? 'bg-orange-50 dark:bg-[#2a2f36] border-l-4 border-orange-500 text-orange-600 dark:text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'}`}
                 >
                   <span className={location.pathname === '/products' ? 'text-orange-500' : ''}>🍔</span>
                   <span className="font-semibold">Menu</span>
@@ -177,7 +177,7 @@ export default function CustomerLayout() {
                   <Link 
                     to="/orders" 
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/orders' ? 'bg-[#2a2f36] border-l-4 border-orange-500 text-white' : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'}`}
+                    className={`flex items-center gap-4 p-4 rounded-xl transition-all ${location.pathname === '/orders' ? 'bg-orange-50 dark:bg-[#2a2f36] border-l-4 border-orange-500 text-orange-600 dark:text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'}`}
                   >
                     <span className={location.pathname === '/orders' ? 'text-orange-500' : ''}>📦</span>
                     <span className="font-semibold">My Orders</span>
@@ -187,17 +187,17 @@ export default function CustomerLayout() {
 
               {/* Logout / Login */}
               {user ? (
-                <div className="p-5 border-t border-gray-800">
+                <div className="p-5 border-t border-gray-100 dark:border-gray-800">
                   <button 
                     onClick={() => { logout(); setMobileMenuOpen(false); navigate('/login'); }}
-                    className="w-full flex items-center gap-4 p-4 rounded-xl text-red-500 hover:bg-red-500/10 transition-all font-semibold"
+                    className="w-full flex items-center gap-4 p-4 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all font-semibold"
                   >
                     <span>🚪</span>
                     <span>Logout</span>
                   </button>
                 </div>
               ) : (
-                <div className="p-5 border-t border-gray-800">
+                <div className="p-5 border-t border-gray-100 dark:border-gray-800">
                   <Link 
                     to="/login"
                     onClick={() => setMobileMenuOpen(false)}
