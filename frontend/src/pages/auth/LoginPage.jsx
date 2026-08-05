@@ -8,10 +8,12 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [unverified, setUnverified] = useState(false);
   const [resending, setResending] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUnverified(false);
+    setError('');
     const res = await login(form.email, form.password);
     if (res.success) {
       if (res.role === 'admin')  navigate('/admin');
@@ -19,6 +21,8 @@ export default function LoginPage() {
       else navigate('/');
     } else if (res.requiresVerification) {
       setUnverified(true);
+    } else {
+      setError(res.error || 'Invalid email or password');
     }
   };
 
@@ -57,6 +61,12 @@ export default function LoginPage() {
             </div>
           )}
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 font-medium text-center">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="label">Email</label>
@@ -65,7 +75,7 @@ export default function LoginPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={form.email}
-                onChange={(e) => { setForm({ ...form, email: e.target.value }); setUnverified(false); }}
+                onChange={(e) => { setForm({ ...form, email: e.target.value }); setUnverified(false); setError(''); }}
                 required
               />
             </div>
@@ -81,7 +91,7 @@ export default function LoginPage() {
                 type="password"
                 placeholder="••••••••"
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(e) => { setForm({ ...form, password: e.target.value }); setError(''); }}
                 required
               />
             </div>

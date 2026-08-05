@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
       if (!requiresVerification) {
         toast.error(msg);
       }
-      return { success: false, requiresVerification };
+      return { success: false, requiresVerification, error: msg };
     } finally {
       setLoading(false);
     }
