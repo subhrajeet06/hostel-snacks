@@ -113,10 +113,28 @@ export default function SellerOrders() {
                         <img src={item.image || `https://via.placeholder.com/40x40?text=${encodeURIComponent(item.name)}`}
                           alt={item.name} loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover bg-gray-100 flex-shrink-0" />
                         <span className="flex-1 text-gray-700 dark:text-gray-300">{item.name} × {item.quantity}</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.price * item.quantity)}</span>
                       </div>
                     ))}
                   </div>
+
+                  {/* Coupon & Total Summary for Seller */}
+                  {order.sellerDiscount > 0 && (
+                    <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl space-y-1.5 text-xs">
+                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                        <span>Items Subtotal</span>
+                        <span>{formatCurrency(order.sellerSubtotal ?? order.items.reduce((s, i) => s + i.price * i.quantity, 0))}</span>
+                      </div>
+                      <div className="flex justify-between text-green-600 font-medium">
+                        <span>Coupon Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                        <span>−{formatCurrency(order.sellerDiscount)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-900 dark:text-white font-bold pt-1 border-t border-gray-200 dark:border-gray-700">
+                        <span>Your Earnings (Final)</span>
+                        <span className="text-orange-500">{formatCurrency(order.sellerAmount)}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {order.notes && (
                     <p className="text-xs bg-yellow-50 dark:bg-gray-800 text-yellow-800 dark:text-yellow-300 rounded-xl p-2.5 mb-4">
                       📝 Note: {order.notes}

@@ -39,13 +39,49 @@ const getOrderStats = async () => {
       ]),
       Order.aggregate([
         { $match: { status: 'delivered' } },
+        {
+          $project: {
+            items: 1,
+            discount: { $ifNull: ['$discount', 0] },
+            rawTotal: {
+              $reduce: {
+                input: '$items',
+                initialValue: 0,
+                in: { $add: ['$$value', { $multiply: ['$$this.price', '$$this.quantity'] }] },
+              },
+            },
+          },
+        },
         { $unwind: '$items' },
         { $match: { 'items.seller': { $exists: true, $ne: null } } },
         {
+          $project: {
+            seller: '$items.seller',
+            quantity: '$items.quantity',
+            itemRevenue: {
+              $cond: [
+                { $gt: ['$rawTotal', 0] },
+                {
+                  $subtract: [
+                    { $multiply: ['$items.price', '$items.quantity'] },
+                    {
+                      $multiply: [
+                        { $divide: [{ $multiply: ['$items.price', '$items.quantity'] }, '$rawTotal'] },
+                        '$discount',
+                      ],
+                    },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+        },
+        {
           $group: {
-            _id: '$items.seller',
-            revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-            itemsSold: { $sum: '$items.quantity' },
+            _id: '$seller',
+            revenue: { $sum: '$itemRevenue' },
+            itemsSold: { $sum: '$quantity' },
           },
         },
         { $sort: { revenue: -1 } },

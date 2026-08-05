@@ -69,11 +69,19 @@ const redeemCoupon = async (couponId, userId) => {
 };
 
 const sellerOrderView = (order, sellerId) => {
-  const items = order.items.filter((item) => item.seller && item.seller.toString() === sellerId);
+  const items = (order.items || []).filter((item) => item.seller && item.seller.toString() === sellerId);
+  const rawOrderTotal = (order.items || []).reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
+  const sellerRawTotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
+  const orderDiscount = order.discount || 0;
+  const sellerDiscount = rawOrderTotal > 0 ? (sellerRawTotal / rawOrderTotal) * orderDiscount : 0;
+  const sellerAmount = Math.max(0, sellerRawTotal - sellerDiscount);
+
   return {
     ...order,
     items,
-    sellerAmount: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    sellerSubtotal: Math.round(sellerRawTotal * 100) / 100,
+    sellerDiscount: Math.round(sellerDiscount * 100) / 100,
+    sellerAmount: Math.round(sellerAmount * 100) / 100,
   };
 };
 
