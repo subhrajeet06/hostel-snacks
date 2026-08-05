@@ -13,6 +13,7 @@ const {
   orderIdParamValidator,
   validateCouponValidator,
 } = require('../validators/orderValidators');
+const { logAudit } = require('../utils/auditLogger');
 
 const ORDER_LIST_LIMIT = 50;
 
@@ -285,6 +286,13 @@ router.put('/:id/status', protect, authorize('seller', 'admin'), updateOrderStat
 
   const order = await Order.findOneAndUpdate(query, update, { new: true, runValidators: true }).lean();
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+  logAudit(req, {
+    action: 'order_status_changed',
+    resourceType: 'order',
+    resourceId: req.params.id,
+    changes: { status: { from: order.statusHistory?.[order.statusHistory.length - 2]?.status || 'unknown', to: status } },
+  });
 
   invalidateOrderCaches();
 

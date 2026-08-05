@@ -15,6 +15,7 @@ const {
   updateProductValidator,
   productIdParamValidator,
 } = require('../validators/productValidators');
+const { logAudit, diffChanges } = require('../utils/auditLogger');
 
 const PRODUCT_CACHE_TTL = 30;
 const TOP_PRODUCT_CACHE_TTL = 60;
@@ -186,6 +187,7 @@ router.post('/', protect, authorize('seller', 'admin'), createProductValidator, 
   });
 
   invalidateProductCaches();
+  logAudit(req, { action: 'product_created', resourceType: 'product', resourceId: product._id.toString() });
 
   const freshProduct = await Product.findById(product._id, productProjection)
     .populate('seller', 'name')
@@ -198,7 +200,7 @@ router.post('/', protect, authorize('seller', 'admin'), createProductValidator, 
 // @desc    Update product
 // @access  Seller (own) / Admin
 router.put('/:id', protect, authorize('seller', 'admin'), updateProductValidator, async (req, res) => {
-  const product = await Product.findById(req.params.id).select('seller').lean();
+  const product = await Product.findById(req.params.id).select('seller name price stock discount isAvailable description category image').lean();
   if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
   if (req.user.role === 'seller' && product.seller.toString() !== req.user.id) {
@@ -224,6 +226,16 @@ router.put('/:id', protect, authorize('seller', 'admin'), updateProductValidator
     .populate('seller', 'name')
     .lean();
 
+  // Audit: capture what changed. Log specific sub-actions for price/inventory.
+  const changes = diffChanges(product, updates, Object.keys(updates));
+  logAudit(req, { action: 'product_updated', resourceType: 'product', resourceId: req.params.id, changes });
+  if (updates.price !== undefined && String(updates.price) !== String(product.price)) {
+    logAudit(req, { action: 'price_updated', resourceType: 'product', resourceId: req.params.id, changes: { price: { from: product.price, to: updates.price } } });
+  }
+  if (updates.stock !== undefined && String(updates.stock) !== String(product.stock)) {
+    logAudit(req, { action: 'inventory_updated', resourceType: 'product', resourceId: req.params.id, changes: { stock: { from: product.stock, to: updates.stock } } });
+  }
+
   invalidateProductCaches();
   res.json({ success: true, product: shapeProduct(updated) });
 });
@@ -240,6 +252,7 @@ router.delete('/:id', protect, authorize('seller', 'admin'), productIdParamValid
   }
 
   await Product.deleteOne({ _id: req.params.id });
+  logAudit(req, { action: 'product_deleted', resourceType: 'product', resourceId: req.params.id });
   invalidateProductCaches();
   res.json({ success: true, message: 'Product deleted' });
 });

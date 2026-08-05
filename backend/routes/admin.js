@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const AuditLog = require('../models/AuditLog');
 const { protect, authorize } = require('../middleware/auth');
 const { delByPrefix, getOrSet } = require('../utils/cache');
 const {
@@ -17,6 +18,7 @@ const {
   userIdParamValidator,
   createSellerValidator,
 } = require('../validators/adminValidators');
+const { logAudit, diffChanges } = require('../utils/auditLogger');
 
 // All routes are admin only
 router.use(protect, authorize('admin'));
@@ -215,13 +217,21 @@ router.put('/users/:id', updateUserValidator, async (req, res) => {
     }
   }
 
+  // Snapshot old values for audit diff
+  const oldUser = await User.findById(req.params.id).select('role isActive').lean();
+  if (!oldUser) return res.status(404).json({ success: false, message: 'User not found' });
+
   const user = await User.findByIdAndUpdate(
     req.params.id,
     { ...(role && { role }), ...(isActive !== undefined && { isActive }) },
     { new: true, runValidators: true }
   ).select(safeUserProjection).lean();
 
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  // Determine audit action: role_changed if role changed, user_updated otherwise.
+  const changes = diffChanges(oldUser, { role: role || oldUser.role, isActive: isActive !== undefined ? isActive : oldUser.isActive }, ['role', 'isActive']);
+  const action = (role && role !== oldUser.role) ? 'role_changed' : 'user_updated';
+  logAudit(req, { action, resourceType: 'user', resourceId: req.params.id, changes });
+
   invalidateAdminStats();
   res.json({ success: true, user });
 });
@@ -234,6 +244,7 @@ router.delete('/users/:id', userIdParamValidator, async (req, res) => {
   if (!user) return res.status(404).json({ success: false, message: 'User not found' });
   if (user.role === 'admin') return res.status(400).json({ success: false, message: 'Cannot delete admin' });
   await User.deleteOne({ _id: req.params.id });
+  logAudit(req, { action: 'user_deleted', resourceType: 'user', resourceId: req.params.id });
   invalidateAdminStats();
   res.json({ success: true, message: 'User deleted' });
 });
@@ -248,6 +259,7 @@ router.post('/sellers', createSellerValidator, async (req, res) => {
   if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
 
   const seller = await User.create({ name, email: normalizedEmail, password, phone, role: 'seller' });
+  logAudit(req, { action: 'seller_created', resourceType: 'user', resourceId: seller._id.toString() });
   invalidateAdminStats();
   res.status(201).json({ success: true, user: { id: seller._id, name: seller.name, email: seller.email, role: seller.role } });
 });
@@ -306,6 +318,37 @@ router.get('/products', async (req, res) => {
 
   res.set('Cache-Control', 'private, no-store');
   res.json({ success: true, total, page, pages: Math.ceil(total / limit), products: shapeProducts(products) });
+});
+
+// @route   GET /api/admin/audit-logs
+// @desc    Get paginated audit logs (filterable by action, resourceType, actor)
+// @access  Admin
+router.get('/audit-logs', async (req, res) => {
+  const { action, resourceType, actor } = req.query;
+  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
+  const query = {};
+  if (action) query.action = action;
+  if (resourceType) query.resourceType = resourceType;
+  if (actor) query.actor = actor;
+
+  const [total, logs] = await Promise.all([
+    AuditLog.countDocuments(query),
+    AuditLog.find(query)
+      .populate('actor', 'name email role')
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  res.set('Cache-Control', 'private, no-store');
+  res.json({
+    success: true,
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+    logs,
+  });
 });
 
 module.exports = router;

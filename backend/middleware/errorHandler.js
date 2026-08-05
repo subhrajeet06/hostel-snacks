@@ -7,7 +7,7 @@ const { logSecurityEvent } = require('../utils/securityLogger');
  * generic 500 for anything unexpected — so stack traces, DB errors, and
  * file paths are never sent to the client.
  */
-const mapKnownError = (err) => {
+const mapKnownError = (err, req) => {
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     const message = Object.values(err.errors || {})
@@ -37,9 +37,20 @@ const mapKnownError = (err) => {
 
   // Body parser JSON errors
   if (err.type === 'entity.parse.failed') {
+    logSecurityEvent('malformed_payload', {
+      ip: req.ip,
+      path: req.originalUrl,
+      method: req.method,
+    });
     return { statusCode: 400, message: 'Malformed JSON in request body' };
   }
   if (err.type === 'entity.too.large') {
+    logSecurityEvent('large_request_body', {
+      ip: req.ip,
+      path: req.originalUrl,
+      method: req.method,
+      contentLength: req.headers?.['content-length'] || 'unknown',
+    });
     return { statusCode: 413, message: 'Request body too large' };
   }
 
@@ -48,7 +59,7 @@ const mapKnownError = (err) => {
 
 // eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, next) => {
-  const known = mapKnownError(err);
+  const known = mapKnownError(err, req);
   const statusCode = known?.statusCode || err.statusCode || 500;
   const isServerError = statusCode >= 500;
 
@@ -79,6 +90,12 @@ const errorHandler = (err, req, res, next) => {
 
 // eslint-disable-next-line no-unused-vars
 const notFoundHandler = (req, res) => {
+  logSecurityEvent('unknown_route', {
+    ip: req.ip,
+    path: req.originalUrl,
+    method: req.method,
+    userAgent: (req.headers['user-agent'] || '').slice(0, 256),
+  });
   res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
 };
 

@@ -14,6 +14,7 @@ const { mongoInjectionGuard, xssGuard } = require('./middleware/sanitize');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { logSecurityEvent } = require('./utils/securityLogger');
 const { requestTimer, responseCompression } = require('./middleware/performance');
+const { requestLogger } = require('./middleware/requestLogger');
 
 // ─── Boot-time environment validation ──────────────────────────────────────
 // A weak or missing JWT secret undermines every other security control in
@@ -75,22 +76,28 @@ app.set('io', io);
 connectDB();
 
 app.use(requestTimer);
+app.use(requestLogger);
 
-// Security headers. CSP is scoped to "no external resources needed by the
-// API itself" — this is a JSON API, not a page renderer, so a restrictive
-// default-src 'none' does not affect the React frontend (which is served
-// separately by Vercel and talks to this API over fetch/XHR, unaffected by
-// this server's CSP header).
+// Security headers. This is a JSON API (not a page renderer), so a
+// restrictive CSP does not affect the React frontend (served by Vercel).
+// crossOriginResourcePolicy is 'cross-origin' so the frontend can fetch.
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'none'"],
         frameAncestors: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'self'"],
       },
     },
     crossOriginResourcePolicy: { policy: 'cross-origin' },
-    hsts: process.env.NODE_ENV === 'production' ? undefined : false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: process.env.NODE_ENV === 'production'
+      ? { maxAge: 31536000, includeSubDomains: true }
+      : false,
   })
 );
 
@@ -165,6 +172,14 @@ app.use(notFoundHandler);
 // Must be registered last. Never leaks stack traces, DB errors, or internal
 // details to the client — see middleware/errorHandler.js.
 app.use(errorHandler);
+
+// ─── Production hardening ─────────────────────────────────────────────────────
+// Render (and most ALBs) use a 60 s idle timeout; keepAliveTimeout must be
+// greater to prevent 502s caused by the ALB sending a request on a connection
+// that Node already closed.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+server.setTimeout(Number(process.env.SERVER_TIMEOUT_MS || 30_000));
 
 // ─── Start Server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
