@@ -68,7 +68,7 @@ export default function CustomerLayout() {
 
             {/* User menu */}
             {user ? (
-              <div className="relative">
+              <div className="relative hidden md:block">
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
                   className="flex items-center gap-2 bg-orange-500 text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-orange-600 transition-all"
@@ -95,7 +95,7 @@ export default function CustomerLayout() {
                 )}
               </div>
             ) : (
-              <Link to="/login" className="btn-primary py-2 px-4 text-sm">Sign In</Link>
+              <Link to="/login" className="btn-primary py-2 px-4 text-sm hidden md:block">Sign In</Link>
             )}
 
             {/* Mobile menu button */}
@@ -185,8 +185,8 @@ export default function CustomerLayout() {
                 )}
               </div>
 
-              {/* Logout */}
-              {user && (
+              {/* Logout / Login */}
+              {user ? (
                 <div className="p-5 border-t border-gray-800">
                   <button 
                     onClick={() => { logout(); setMobileMenuOpen(false); navigate('/login'); }}
@@ -195,6 +195,17 @@ export default function CustomerLayout() {
                     <span>🚪</span>
                     <span>Logout</span>
                   </button>
+                </div>
+              ) : (
+                <div className="p-5 border-t border-gray-800">
+                  <Link 
+                    to="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center gap-2 p-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition-all font-semibold"
+                  >
+                    <span>🔐</span>
+                    <span>Sign In</span>
+                  </Link>
                 </div>
               )}
             </div>
