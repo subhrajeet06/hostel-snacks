@@ -75,7 +75,7 @@ export default function LoginPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={form.email}
-                onChange={(e) => { setForm({ ...form, email: e.target.value }); setUnverified(false); setError(''); }}
+                onChange={(e) => { setForm({ ...form, email: e.target.value }); setUnverified(false); }}
                 required
               />
             </div>
@@ -91,7 +91,7 @@ export default function LoginPage() {
                 type="password"
                 placeholder="••••••••"
                 value={form.password}
-                onChange={(e) => { setForm({ ...form, password: e.target.value }); setError(''); }}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required
               />
             </div>
