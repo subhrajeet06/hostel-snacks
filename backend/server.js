@@ -46,8 +46,19 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
 // Shared origin-check used by both the HTTP CORS middleware and Socket.io.
 // Requests with no Origin header (server-to-server, curl, health checks)
 // are allowed through; anything with an Origin header must match the
-// configured allow-list exactly.
-const isOriginAllowed = (origin) => !origin || allowedOrigins.includes(origin);
+// configured allow-list exactly, or be a valid Vercel preview deployment.
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  
+  // Securely allow future Vercel Preview deployments for this specific project
+  // Example: https://hostel-snacks-git-v2-self-pickup-subhrajeet-paridas-projects.vercel.app
+  if (/^https:\/\/hostel-snacks-.*-subhrajeet-paridas-projects\.vercel\.app$/.test(origin)) {
+    return true;
+  }
+  
+  return false;
+};
 
 const corsOptions = {
   origin: (origin, callback) => {
