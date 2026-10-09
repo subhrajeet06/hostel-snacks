@@ -14,7 +14,7 @@ const CATEGORIES = [
 ];
 
 const OFFERS = [
-  { text: 'Fast delivery', sub: '< 15 mins' },
+  { text: 'Quick Pickup', sub: '< 5 mins' },
   { text: 'HOSTEL10', sub: '10% off first order' },
   { text: 'FIRST20', sub: '20% off new users' },
   { text: 'UPI & COD', sub: 'Multiple payments' },
@@ -52,12 +52,12 @@ export default function HomePage() {
     <div className="space-y-10">
       <div className="relative bg-gradient-to-r from-orange-500 to-amber-400 rounded-3xl p-8 md:p-12 overflow-hidden">
         <div className="relative z-10">
-          <p className="text-orange-100 font-medium text-sm mb-2">Hostel Delivery</p>
+          <p className="text-orange-100 font-medium text-sm mb-2">Hostel Pickup</p>
           <h1 className="font-display text-3xl md:text-4xl font-bold text-white mb-3 leading-tight">
             Midnight hunger?<br />We got you.
           </h1>
           <p className="text-orange-100 mb-6 text-sm md:text-base">
-            Chips, biscuits, Kurkure, cold drinks delivered straight to your room.
+            Chips, biscuits, Kurkure, cold drinks — order online and pick them up from our room.
           </p>
           <Link to="/products" className="inline-flex items-center gap-2 bg-white text-orange-600 font-bold px-6 py-3 rounded-2xl hover:shadow-lg transition-all hover:-translate-y-0.5">
             Order Now
