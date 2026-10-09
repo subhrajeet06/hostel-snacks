@@ -15,7 +15,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
-    roomNumber: user?.roomNumber || '',
+    roomNumber: user?.roomNumber || 'Pickup',
     phoneNumber: user?.phone || '',
     paymentMethod: 'cod',
     upiTransactionId: '',
@@ -61,7 +61,6 @@ export default function CheckoutPage() {
   };
 
   const placeOrder = async () => {
-    if (!form.roomNumber.trim()) return toast.error('Please enter your room number');
     if (!form.phoneNumber.trim()) return toast.error('Please enter your phone number');
     if (form.paymentMethod === 'upi' && !form.upiTransactionId.trim()) {
       return toast.error('Please enter UPI transaction ID');
@@ -94,13 +93,8 @@ export default function CheckoutPage() {
       <div className="space-y-4">
         {/* Delivery details */}
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">📍 Delivery Details</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Room Number *</label>
-              <input className="input" placeholder="e.g. A-201" value={form.roomNumber}
-                onChange={(e) => setForm({ ...form, roomNumber: e.target.value })} required />
-            </div>
+          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">📍 Pickup Details</h2>
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="label">Phone Number *</label>
               <input className="input" type="tel" placeholder="9876543210" value={form.phoneNumber}
@@ -119,8 +113,8 @@ export default function CheckoutPage() {
           <h2 className="font-semibold text-gray-900 dark:text-white mb-4">💳 Payment Method</h2>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { value: 'cod', icon: '💵', label: 'Cash on Delivery', sub: 'Pay when delivered' },
-              { value: 'upi', icon: '📱', label: 'UPI Payment',       sub: 'Pay via UPI' },
+              { value: 'cod', icon: '💵', label: 'Pay at Pickup', sub: 'Pay when you collect your order' },
+              { value: 'upi', icon: '📱', label: 'UPI Payment',       sub: 'Pay via UPI before pickup' },
             ].map((opt) => (
               <label key={opt.value}
                 className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
@@ -208,9 +202,6 @@ export default function CheckoutPage() {
                 <span>Discount ({couponApplied.code})</span><span>−{formatCurrency(discount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-gray-500 dark:text-gray-400">
-              <span>Delivery</span><span className="text-green-500 font-medium">FREE</span>
-            </div>
             <hr className="border-gray-100 dark:border-gray-800 my-2" />
             <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
               <span>Total</span>
