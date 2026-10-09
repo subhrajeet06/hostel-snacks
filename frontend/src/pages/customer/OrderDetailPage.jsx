@@ -59,6 +59,18 @@ export default function OrderDetailPage() {
         <span className={`badge ${statusColor[order.status]} ml-auto`}>{statusLabel[order.status]}</span>
       </div>
 
+      {order.status === 'out_for_delivery' && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-6 mb-6 text-center">
+          <h2 className="text-2xl font-bold text-green-700 dark:text-green-400 mb-2">READY FOR PICKUP</h2>
+          <p className="text-green-600 dark:text-green-300 text-sm mb-4">Your order is ready. Please collect it from the Hostel Bite room.</p>
+          <div className="inline-block bg-white dark:bg-gray-800 rounded-xl p-4 text-left border border-green-100 dark:border-green-800/50">
+            <p className="text-xs text-gray-500 mb-1">Order ID: <span className="font-mono font-bold text-gray-900 dark:text-white">#{order._id.slice(-8).toUpperCase()}</span></p>
+            <p className="text-xs text-gray-500 mb-1">Location: <span className="font-semibold text-gray-900 dark:text-white">Hostel Bite Room</span></p>
+            <p className="text-xs text-gray-500">Payment: <span className="font-semibold text-gray-900 dark:text-white">{order.paymentMethod === 'cod' ? 'Pay at Pickup' : 'UPI'}</span></p>
+          </div>
+        </div>
+      )}
+
       {/* Status Stepper */}
       {!isCancelled && (
         <div className="card p-5 mb-4">
@@ -127,13 +139,13 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Delivery Info */}
+      {/* Pickup Info */}
       <div className="card p-5 mb-4">
-        <p className="font-semibold text-gray-800 dark:text-white mb-3 text-sm">Delivery Details</p>
+        <p className="font-semibold text-gray-800 dark:text-white mb-3 text-sm">Pickup Details</p>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><p className="text-xs text-gray-400">Room</p><p className="font-semibold dark:text-white">{order.roomNumber}</p></div>
+          <div><p className="text-xs text-gray-400">Location</p><p className="font-semibold dark:text-white">Hostel Bite Room</p></div>
           <div><p className="text-xs text-gray-400">Phone</p><p className="font-semibold dark:text-white">{order.phoneNumber}</p></div>
-          <div><p className="text-xs text-gray-400">Payment</p><p className="font-semibold uppercase dark:text-white">{order.paymentMethod}</p></div>
+          <div><p className="text-xs text-gray-400">Payment</p><p className="font-semibold uppercase dark:text-white">{order.paymentMethod === 'cod' ? 'Pay at Pickup' : 'UPI'}</p></div>
           <div><p className="text-xs text-gray-400">Placed at</p><p className="font-semibold dark:text-white text-xs">{formatDate(order.createdAt)}</p></div>
         </div>
         {order.notes && <p className="text-xs text-gray-500 mt-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-2">📝 {order.notes}</p>}

@@ -10,8 +10,8 @@ export const statusLabel = {
   pending:          'Pending',
   accepted:         'Accepted',
   preparing:        'Preparing',
-  out_for_delivery: 'Out for Delivery',
-  delivered:        'Delivered',
+  out_for_delivery: 'Ready for Pickup',
+  delivered:        'Collected',
   cancelled:        'Cancelled',
 };
 
@@ -46,8 +46,8 @@ export const orderStatusSteps = [
   { key: 'pending',          label: 'Order Placed',      icon: '📋' },
   { key: 'accepted',         label: 'Accepted',          icon: '✅' },
   { key: 'preparing',        label: 'Preparing',         icon: '👨‍🍳' },
-  { key: 'out_for_delivery', label: 'Out for Delivery',  icon: '🚴' },
-  { key: 'delivered',        label: 'Delivered',         icon: '🎉' },
+  { key: 'out_for_delivery', label: 'Ready for Pickup',  icon: '🛍️' },
+  { key: 'delivered',        label: 'Collected',         icon: '🎉' },
 ];
 
 export const getStepIndex = (status) => orderStatusSteps.findIndex((s) => s.key === status);

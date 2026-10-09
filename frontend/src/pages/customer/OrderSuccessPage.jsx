@@ -20,7 +20,7 @@ export default function OrderSuccessPage() {
       {/* Success animation */}
       <div className="text-8xl mb-4 animate-bounce">🎉</div>
       <h1 className="font-display text-3xl font-bold text-gray-900 dark:text-white mb-2">Order Placed!</h1>
-      <p className="text-gray-500 mb-8">Your snacks are on their way 🚀</p>
+      <p className="text-gray-500 mb-8">Your order is being prepared. We'll let you know when it's ready for pickup.</p>
 
       <div className="card p-6 text-left mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -44,9 +44,9 @@ export default function OrderSuccessPage() {
 
         <hr className="border-gray-100 dark:border-gray-800 mb-4" />
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><p className="text-gray-400 text-xs">Room</p><p className="font-semibold dark:text-white">{order.roomNumber}</p></div>
+          <div><p className="text-gray-400 text-xs">Pickup</p><p className="font-semibold dark:text-white">Hostel Bite Room</p></div>
           <div><p className="text-gray-400 text-xs">Phone</p><p className="font-semibold dark:text-white">{order.phoneNumber}</p></div>
-          <div><p className="text-gray-400 text-xs">Payment</p><p className="font-semibold uppercase dark:text-white">{order.paymentMethod}</p></div>
+          <div><p className="text-gray-400 text-xs">Payment</p><p className="font-semibold uppercase dark:text-white">{order.paymentMethod === 'cod' ? 'Pay at Pickup' : 'UPI'}</p></div>
           <div><p className="text-gray-400 text-xs">Total</p><p className="font-bold text-orange-500">{formatCurrency(order.totalAmount)}</p></div>
         </div>
       </div>
@@ -59,8 +59,8 @@ export default function OrderSuccessPage() {
             { key: 'pending', icon: '📋', label: 'Order Placed' },
             { key: 'accepted', icon: '✅', label: 'Accepted' },
             { key: 'preparing', icon: '👨‍🍳', label: 'Preparing' },
-            { key: 'out_for_delivery', icon: '🚴', label: 'Out for Delivery' },
-            { key: 'delivered', icon: '🎉', label: 'Delivered' },
+            { key: 'out_for_delivery', icon: '🛍️', label: 'Ready for Pickup' },
+            { key: 'delivered', icon: '🎉', label: 'Collected' },
           ].map((step, idx) => {
             const steps = ['pending','accepted','preparing','out_for_delivery','delivered'];
             const currentIdx = steps.indexOf(order.status);
