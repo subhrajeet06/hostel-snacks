@@ -32,10 +32,10 @@ export default function SellerOrders() {
       fetchOrders();
     });
 
-    const unsubStatus = subscribeSocketEvent('order_status_update', ({ status }) => {
+    const unsubStatus = subscribeSocketEvent('order_status_update', ({ orderId, status }) => {
       if (status === 'cancelled') {
         toast.error('An order was cancelled by the customer');
-        fetchOrders();
+        setOrders((prev) => prev.map((o) => o._id === orderId ? { ...o, status } : o));
       }
     });
 
