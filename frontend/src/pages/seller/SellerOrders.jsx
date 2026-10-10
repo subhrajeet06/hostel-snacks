@@ -27,10 +27,22 @@ export default function SellerOrders() {
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   useEffect(() => {
-    return subscribeSocketEvent('new_order', () => {
+    const unsubNew = subscribeSocketEvent('new_order', () => {
       toast.success('New order received!');
       fetchOrders();
     });
+
+    const unsubStatus = subscribeSocketEvent('order_status_update', ({ status }) => {
+      if (status === 'cancelled') {
+        toast.error('An order was cancelled by the customer');
+        fetchOrders();
+      }
+    });
+
+    return () => {
+      unsubNew();
+      unsubStatus();
+    };
   }, [fetchOrders]);
 
   const updateStatus = async (orderId, status) => {

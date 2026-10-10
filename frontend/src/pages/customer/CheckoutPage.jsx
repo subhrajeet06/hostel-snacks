@@ -62,8 +62,10 @@ export default function CheckoutPage() {
 
   const placeOrder = async () => {
     if (!form.phoneNumber.trim()) return toast.error('Please enter your phone number');
-    if (form.paymentMethod === 'upi' && !form.upiTransactionId.trim()) {
-      return toast.error('Please enter UPI transaction ID');
+    if (form.paymentMethod === 'upi') {
+      const upiId = form.upiTransactionId.trim();
+      if (!upiId) return toast.error('Please enter UPI transaction ID');
+      if (!/^\d{12}$/.test(upiId)) return toast.error('UPI transaction ID must be exactly 12 digits');
     }
 
     setLoading(true);
@@ -160,8 +162,8 @@ export default function CheckoutPage() {
               )}
               <div>
                 <label className="label">UPI Transaction ID *</label>
-                <input className="input" placeholder="e.g. 423456789012" value={form.upiTransactionId}
-                  onChange={(e) => setForm({ ...form, upiTransactionId: e.target.value })} />
+                <input className="input" placeholder="e.g. 423456789012" value={form.upiTransactionId} maxLength={12}
+                  onChange={(e) => setForm({ ...form, upiTransactionId: e.target.value.replace(/\D/g, '') })} />
                 <p className="text-xs text-gray-500 mt-1">Enter the 12-digit transaction ID from your UPI app</p>
               </div>
             </div>

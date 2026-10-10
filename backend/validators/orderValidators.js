@@ -17,7 +17,13 @@ const placeOrderValidator = [
     .withMessage('Payment method is required')
     .isIn(PAYMENT_METHODS)
     .withMessage(`Payment method must be one of: ${PAYMENT_METHODS.join(', ')}`),
-  body('upiTransactionId').optional({ checkFalsy: true }).trim().isLength({ max: 100 }).withMessage('UPI transaction ID is too long'),
+  body('upiTransactionId')
+    .if(body('paymentMethod').equals('upi'))
+    .trim()
+    .notEmpty()
+    .withMessage('UPI transaction ID is required for UPI payments')
+    .matches(/^\d{12}$/)
+    .withMessage('UPI transaction ID must be exactly 12 digits'),
   body('notes').optional({ checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Notes are too long'),
   body('couponCode')
     .optional({ checkFalsy: true })

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import { formatCurrency, formatDate, statusColor, statusLabel } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { subscribeSocketEvent } from '../../hooks/useSocket';
 
 const STATUSES = ['all','pending','accepted','preparing','out_for_delivery','delivered','cancelled'];
 
@@ -26,6 +27,25 @@ export default function AdminOrders() {
   };
 
   useEffect(() => { fetchOrders(); }, [filter]);
+
+  useEffect(() => {
+    const unsubNew = subscribeSocketEvent('new_order', () => {
+      toast.success('New order received!');
+      fetchOrders();
+    });
+
+    const unsubStatus = subscribeSocketEvent('order_status_update', ({ status }) => {
+      if (status === 'cancelled') {
+        toast.error('An order was cancelled by the customer');
+        fetchOrders();
+      }
+    });
+
+    return () => {
+      unsubNew();
+      unsubStatus();
+    };
+  }, [filter]);
 
   const updateStatus = async (orderId, status) => {
     setUpdating(orderId);

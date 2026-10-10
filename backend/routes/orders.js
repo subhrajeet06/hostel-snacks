@@ -273,7 +273,7 @@ router.get('/:id', protect, orderIdParamValidator, async (req, res) => {
 router.put('/:id/status', protect, authorize('seller', 'admin'), updateOrderStatusValidator, async (req, res) => {
   const { status, note } = req.body;
 
-  const query = { _id: req.params.id };
+  const query = { _id: req.params.id, status: { $ne: 'cancelled' } };
   if (req.user.role === 'seller') query['items.seller'] = req.user.id;
 
   const update = {
@@ -285,7 +285,13 @@ router.put('/:id/status', protect, authorize('seller', 'admin'), updateOrderStat
   };
 
   const order = await Order.findOneAndUpdate(query, update, { new: true, runValidators: true }).lean();
-  if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+  if (!order) {
+    const existingOrder = await Order.findById(req.params.id).lean();
+    if (existingOrder && existingOrder.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Order has already been cancelled by the customer' });
+    }
+    return res.status(404).json({ success: false, message: 'Order not found' });
+  }
 
   logAudit(req, {
     action: 'order_status_changed',
@@ -337,6 +343,16 @@ router.put('/:id/cancel', protect, authorize('customer'), orderIdParamValidator,
   ).lean();
 
   invalidateOrderCaches();
+
+  const io = req.app.get('io');
+  if (io) {
+    io.to('sellers').emit('order_status_update', {
+      orderId: updatedOrder._id,
+      status: 'cancelled',
+      note: 'Cancelled by customer',
+    });
+  }
+
   res.json({ success: true, order: updatedOrder });
 });
 
