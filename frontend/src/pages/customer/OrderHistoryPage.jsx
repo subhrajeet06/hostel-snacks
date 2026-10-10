@@ -59,7 +59,7 @@ export default function OrderHistoryPage() {
               {order.items.map((i) => i.name).join(', ')}
             </p>
             <div className="flex justify-between mt-2 text-xs text-gray-400">
-              <span>🏠 Room {order.roomNumber}</span>
+              <span>📍 Pickup: Hostel Bite Room</span>
               <span className="uppercase">{order.paymentMethod}</span>
             </div>
           </Link>

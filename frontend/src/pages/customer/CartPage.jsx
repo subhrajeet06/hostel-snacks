@@ -91,7 +91,7 @@ export default function CartPage() {
             <span>{formatCurrency(cart.totalAmount)}</span>
           </div>
           <div className="flex justify-between text-gray-600 dark:text-gray-400">
-            <span>Delivery</span>
+            <span>Pickup</span>
             <span className="text-green-500 font-medium">FREE</span>
           </div>
           <hr className="border-gray-100 dark:border-gray-800 my-2" />

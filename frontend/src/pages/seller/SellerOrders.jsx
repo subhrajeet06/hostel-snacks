@@ -105,7 +105,7 @@ export default function SellerOrders() {
                     {order.paymentMethod === 'cod' && <span className="badge bg-gray-100 text-gray-700 text-xs">💵 COD</span>}
                   </div>
                   <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
-                    🏠 Room {order.roomNumber} · 📞 {order.phoneNumber}
+                    📍 Pickup: Hostel Bite Room · 📞 {order.phoneNumber}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">{formatDate(order.createdAt)} · {order.items.length} item(s)</p>
                 </div>
@@ -175,7 +175,7 @@ export default function SellerOrders() {
                     </div>
                   )}
                   {order.status === 'delivered' && (
-                    <p className="text-green-600 dark:text-green-400 text-sm font-semibold text-center">✅ Order Delivered!</p>
+                    <p className="text-green-600 dark:text-green-400 text-sm font-semibold text-center">✅ Order Collected!</p>
                   )}
                   {order.status === 'cancelled' && (
                     <p className="text-red-500 text-sm font-semibold text-center">❌ Order Cancelled</p>

@@ -155,7 +155,7 @@ export default function AdminOrders() {
                     </span>
                   </div>
                   <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                    {order.user?.name} · Room {order.roomNumber} · 📞 {order.phoneNumber}
+                    {order.user?.name} · 📍 Pickup: Hostel Bite Room · 📞 {order.phoneNumber}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">{formatDate(order.createdAt)}</p>
                 </div>
