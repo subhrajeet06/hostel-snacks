@@ -77,7 +77,7 @@ export default function SellerDashboard() {
                 <div key={o._id} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">#{o._id.slice(-6).toUpperCase()}</p>
-                    <p className="text-xs text-gray-500">Room {o.roomNumber} · {o.items.length} item(s)</p>
+                    <p className="text-xs text-gray-500">📍 Pickup: Hostel Bite Room · {o.items.length} item(s)</p>
                     <p className="text-xs text-gray-400">{formatDate(o.createdAt)}</p>
                   </div>
                   <div className="text-right">

@@ -47,7 +47,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🍟</div>
           <h1 className="font-display text-3xl font-bold text-gray-900">HostelBite</h1>
-          <p className="text-gray-500 mt-1 text-sm">Snacks delivered to your room</p>
+          <p className="text-gray-500 mt-1 text-sm">Fast snack pickup for hostelers</p>
         </div>
 
         <div className="card p-8 shadow-xl">
