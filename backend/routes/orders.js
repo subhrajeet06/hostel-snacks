@@ -347,7 +347,7 @@ router.put('/:id/cancel', protect, authorize('customer'), orderIdParamValidator,
   const io = req.app.get('io');
   if (io) {
     io.to('sellers').emit('order_status_update', {
-      orderId: updatedOrder._id,
+      orderId: updatedOrder._id.toString(),
       status: 'cancelled',
       note: 'Cancelled by customer',
     });
